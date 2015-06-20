@@ -1,0 +1,56 @@
+{
+	"servers":{
+		"obfs4proxy":{
+			"ptexec": "./obfs4proxy",
+			"statedir": "./state",
+			"orport": "127.0.0.1:7000",
+			"transports":{
+				"obfs4":{
+					"bindaddr": "127.0.0.1:7900",
+					"options":{
+						"node-id":"4d3e4561149907025571827a1277661b5f9fca46",
+						"private-key":"7886017adfd178cd139e91250dddee0b2af8ab6cf93f1fe9a7a469d3a13a3067",
+						"public-key":"4393d7641042620a60881a72ebb47ef8c5a5840acb4f858e5c0026cb2e75fd6f",
+						"drbg-seed":"c23e876ddc408cc392317e017a6796a96161f76d8dd90522",
+						"iat-mode":0
+					}
+				},
+				"obfs3":{
+					"bindaddr": "127.0.0.1:7901"
+				}
+			}
+		}
+	},
+	"clients":{
+		"obfs4proxy":{
+			"ptexec": "./obfs4proxy",
+			"statedir": "./state",
+			"transports":{
+				"obfs4":[
+					{
+						"listenaddr": ["127.0.0.1", 8000],
+						"remoteaddr": ["127.0.0.1", 7900],
+						"options":{
+							"cert": "TT5FYRSZBwJVcYJ6EndmG1+fykZDk9dkEEJiCmCIGnLrtH74xaWECstPhY5cACbLLnX9bw",
+							"iat-mode": "0"
+						}
+					},
+					{
+						"listenaddr": ["127.0.0.1", 8001],
+						"remoteaddr": ["127.0.0.1", 7900],
+						"options":{
+							"cert": "TT5FYRSZBwJVcYJ6EndmG1+fykZDk9dkEEJiCmCIGnLrtH74xaWECstPhY5cACbLLnX9bw",
+							"iat-mode": "0"
+						}
+					}
+				],
+				"obfs3":[
+					{
+						"listenaddr": ["127.0.0.1", 8002],
+						"remoteaddr": ["127.0.0.1", 7901]
+					}
+				]
+			}
+		}
+	}
+}

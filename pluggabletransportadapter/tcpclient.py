@@ -1,15 +1,21 @@
+'''This module implements Tor's "managed proxy protocol", used for communication
+between Tor and pluggable transports.'''
+
 from rsocks.pool import ServerPool
 from rsocks.server import ReverseProxyServer
 
 from . import PluggableTransportClientSOCKSAdapter
 
 class PluggableTransportClientTCPAdapter(PluggableTransportClientSOCKSAdapter):
-    '''Adapter for pluggable transport running as "complete" client: accepts
-    TCP connections on user-chosen address:port and forwards obfuscated 
-    traffic.'''
+    '''Adapter for pluggable transport running as "complete" client.
+    
+    Listens for TCP connections on user-specified address:port, connect to 
+    destination address:port, and forwards obfuscated traffic.'''
     
     def __init__(self, ptexec, statedir, transports, upstream_proxy=None):
-        '''
+        '''Initialize class.
+        
+        Arguments:
         ptexec: either string or sequence of of the pluggable transport
             executable. This is passed directly to Popen(), so check its
             documentation for details.

@@ -1,8 +1,5 @@
 '''This module implements Tor's "managed proxy protocol", used for communication
-between Tor and pluggable transports. The aim is to make it easy to use 
-the various pluggable transports, either as standalone tunnels or as parts of 
-other projects.'''
-
+between Tor and pluggable transports.'''
 
 import logging
 import subprocess
@@ -12,7 +9,8 @@ class PluggableTransportBaseAdapter(object):
     '''Base class for pluggable transport adapters.'''
     
     def __init__(self, ptexec, statedir):
-        '''
+        '''Initialize class.
+        
         Arguments:
         ptexec: either string or sequence of the pluggable transport
             executable. This is passed directly to Popen()'s 'args', so check its
@@ -48,11 +46,7 @@ class PluggableTransportBaseAdapter(object):
                                   env=self.env, universal_newlines=True)
     
     def terminate(self):
-        '''Terminate the PT executable.
-        
-        The rest of the code isn't really written with stopping the server in
-        mind; terminating the main process / thread should 
-        bring down all child processes. But here it is anyways.'''
+        '''Terminate the PT executable.'''
         
         try:
             if self.p.poll() is None:
@@ -100,11 +94,16 @@ class PluggableTransportBaseAdapter(object):
         return stillneedwork
  
 class PluggableTransportServerAdapter(PluggableTransportBaseAdapter):
-    '''Adapter for pluggable transport running as server: accepts obfuscated
-    TCP traffic and forwards plaintext traffic.'''
+    '''Adapter for pluggable transport running as server.
+    
+    Listens on one or more TCP port(s), accepts obfuscated traffic on each port
+    (optionally with different protocols on each port), and forwards plaintext 
+    traffic to one TCP address:port.'''
     
     def __init__(self, ptexec, statedir, orport, transports):
-        '''
+        '''Initialize class.
+        
+        Arguments:
         ptexec: either string or sequence of of the pluggable transport
             executable. This is passed directly to Popen(), so check its
             documentation for details.
@@ -140,7 +139,8 @@ class PluggableTransportServerAdapter(PluggableTransportBaseAdapter):
             already be escaped with a backslash: this code does not do any
             escaping!
         
-        Examples of Tor server PT configuration that corresponds to above:
+        The following snippet is the Tor server PT configuration equivalent to 
+        above example:
             ServerTransportPlugin trebuchet,ballista exec <ptexec>
             ServerTransportListenAddr trebuchet 127.0.0.1:1984
             ServerTransportListenAddr ballista 127.0.0.1:4891
@@ -242,12 +242,16 @@ class PluggableTransportServerAdapter(PluggableTransportBaseAdapter):
         return done
 
 class PluggableTransportClientSOCKSAdapter(PluggableTransportBaseAdapter):
-    '''Adapter for pluggable transport running as "bare" client: accepts SOCKS
-    proxy requests (with destination address and parameters) and forwards
-    obfuscated traffic.'''
+    '''Adapter for pluggable transport running as "bare" SOCKS client.
+    
+    Listens for SOCKS proxy requests on (PT-chosen) TCP port, reads destination
+    address:port and other parameters from SOCKS user:pass, connect to 
+    destination and forwards obfuscated traffic.'''
     
     def __init__(self, ptexec, statedir, transports, upstream_proxy=None):
-        '''
+        '''Initialize class.
+        
+        Arguments:
         ptexec: either string or sequence of of the pluggable transport
             executable. This is passed directly to Popen(), so check its
             documentation for details.

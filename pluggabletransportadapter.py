@@ -6,6 +6,7 @@ other projects.'''
 
 import logging
 import subprocess
+import os
 
 from rsocks.pool import ServerPool
 from rsocks.server import ReverseProxyServer
@@ -18,7 +19,7 @@ class PluggableTransportBaseAdapter(object):
     def __init__(self, ptexec, statedir):
         '''
         Arguments:
-        ptexec: either string or sequence of of the pluggable transport
+        ptexec: either string or sequence of the pluggable transport
             executable. This is passed directly to Popen()'s 'args', so check its
             documentation for details.
         statedir: string "TOR_PT_STATE_LOCATION". From pt-spec:
@@ -30,8 +31,15 @@ class PluggableTransportBaseAdapter(object):
         self.ptexec = ptexec
         
         # environment variables for PT
-        self.env = {"TOR_PT_MANAGED_TRANSPORT_VER": "1",
-                    "TOR_PT_STATE_LOCATION": statedir}
+        self.env = {}
+        # Under Windows, obfs4proxy requires some environment variables to be 
+        # set, otherwise it throws cryptic error messages like "The requested 
+        # service provider could not be loaded or initialized".
+        if "SystemRoot" in os.environ: 
+            self.env["SystemRoot"] = os.environ["SystemRoot"]
+            
+        self.env["TOR_PT_MANAGED_TRANSPORT_VER"] = "1"
+        self.env["TOR_PT_STATE_LOCATION"] = statedir
         
         self.logger = logging.getLogger("pluggabletransportadapter")
     

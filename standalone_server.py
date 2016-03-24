@@ -32,6 +32,7 @@ def main_cli():
     logconsole = logging.StreamHandler()
     logconsoleformatter = logging.Formatter('[%(asctime)s] %(name)-6s '
             '%(levelname)-8s %(message)s')
+    logconsole.setFormatter(logconsoleformatter)
     if args.verbose is None:
         logconsole.setLevel(logging.WARNING)
     elif args.verbose == 1:

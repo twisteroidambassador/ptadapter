@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 
-'''Standalone server for obfs4proxy and other pluggable transports.
+'''Standalone client for obfs4proxy and other pluggable transports.
 
 This script takes a pluggable transport binary and run it as a standalone
-server, accepting obfuscated traffic, decodes it and forwards plaintext
+client, accepting plaintext traffic, scrambles it and forwards obfuscated
 traffic.'''
 
 import logging
 import argparse
 import configparser
+import threading
 
-from pluggabletransportadapter import PluggableTransportServerAdapter
+from pluggabletransportadapter import PluggableTransportClientTCPAdapter
 
 def main_cli():
     # Argument Parsing
     parser = argparse.ArgumentParser(description="Run a Tor pluggable "
-              "transport as standalone server.")
+              "transport as standalone client.")
     
     parser.add_argument("configfile", type=argparse.FileType("r"), help=
             "Configuration file. See the example config file for details.")
@@ -53,34 +54,52 @@ def main_cli():
     
     logger.info("Read config file")
     
+    # Suppress rsocks's logger
+    rsockslogger = logging.getLogger("rsocks")
+    rsockslogger.addHandler(logging.NullHandler())
+    
+    # Build client configuration
     ptexec = config["common"]["exec"]
     statedir = config["common"]["statedir"]
-    orport = config["common"]["forward"]
+    if config.has_option("common", "upstream-proxy"):
+        upstream_proxy = config["common"]["upstream-proxy"]
+    else:
+        upstream_proxy = None
     
-    # Build server config
     transports = {}
-    for t, b in config.items("transports"):
-        transports[t] = {"bindaddr": b}
-        if config.has_section(t + "-options"):
-            transports[t]["options"] = dict(config.items(t + "-options"))
+    for s, t in config.items("transports"):
+        tr = {
+            "listenaddr": (config[s]["listen-addr"], int(config[s]["listen-port"])),
+            "remoteaddr": (config[s]["server-addr"], int(config[s]["server-port"]))
+            }
+        opt = {o[8:]:v for (o,v) in config.items(s) if o[:8] == "options-"}
+        if opt: tr["options"] = opt
+        
+        if not t in transports:
+            transports[t] = []
+        transports[t].append(tr)
     
     logger.debug("Transports:")
     logger.debug(transports)
     
     # Start PT executable
-    server = PluggableTransportServerAdapter(ptexec, statedir, orport, transports)
-    server.start()
+    client = PluggableTransportClientTCPAdapter(ptexec, statedir, transports, upstream_proxy)
+    client.start()
     logger.debug("Available transports:")
-    logger.debug(server.transports)
+    logger.debug(client.transports)
+    
+    # Start rsocks server loop
+    t = threading.Thread(target = client.rsocksloop, daemon=True)
+    t.start()
     
     # Wait until PT terminates, or terminate on Ctrl+C / SIGTERM
     try:
-        server.wait()
+        client.wait()
     except (KeyboardInterrupt, SystemExit) as e:
         logger.info("Received {}".format(repr(e)))
     finally:
         logger.info("Terminating")
-        server.terminate()
+        client.terminate()
     
 
 if __name__ == "__main__":

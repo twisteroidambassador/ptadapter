@@ -114,8 +114,12 @@ class PluggableTransportClientTCPAdapter(PluggableTransportClientSOCKSAdapter):
                         # rsocks uses urllib.parse.urlparse() to extract
                         # username and passwords from proxy address. It doesn't
                         # work if username/password contains "/".
-                        server.proxy_server["username"] = listeneroptions[:1]
-                        server.proxy_server["password"] = listeneroptions[1:]
+                        if o["protocol"].lower() == "socks4":
+                            server.proxy_server["username"] = listeneroptions
+                        elif o["protocol"].lower() == "socks5":
+                            server.proxy_server["username"] = listeneroptions[:255]
+                            server.proxy_server["password"] = listeneroptions[255:] or '\0'
+                        
                     server.listen(a["listenaddr"])
     
     def rsocksloop(self):

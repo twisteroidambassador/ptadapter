@@ -156,22 +156,19 @@ class PluggableTransportServerAdapter(PluggableTransportBaseAdapter):
         transportlist = []
         optionlist = []
         bindaddrlist = []
-        try:
-            for t, o in transports.items():
-                self.transports[t] = {"ready": False, "error": False}
-                transportlist.append(t)
+        for t, o in transports.items():
+            self.transports[t] = {"ready": False, "error": False}
+            transportlist.append(t)
+            if "bindaddr" in o:
                 bindaddrlist.append(t + "-" + o["bindaddr"])
-                if "options" in o:
-                    for k, v in o["options"].items():
-                        optionlist.append("{}:{}={}".format(t, k, v))
-        except KeyError:
-            self.logger.error("Error while parsing PT server transports{}. "
-                              "Did you include all required info?")
-            raise
+            if "options" in o:
+                for k, v in o["options"].items():
+                    optionlist.append("{}:{}={}".format(t, k, v))
         
         self.env["TOR_PT_SERVER_TRANSPORTS"] = ",".join(transportlist)
-        self.env["TOR_PT_SERVER_BINDADDR"] = ",".join(bindaddrlist)
-        if any(optionlist):
+        if bindaddrlist:
+            self.env["TOR_PT_SERVER_BINDADDR"] = ",".join(bindaddrlist)
+        if optionlist:
             self.env["TOR_PT_SERVER_TRANSPORT_OPTIONS"] = ";".join(optionlist)
         
         self.logger.info("Environment variables prepared for server " + 
@@ -237,7 +234,7 @@ class PluggableTransportServerAdapter(PluggableTransportBaseAdapter):
                 self.logger.info("PT server transport '{}' configured, "
                                  "listening on {}".format(e[0], e[1]))
             else:
-                self.logger.info("PT communication not understood\n" + line)
+                self.logger.warning("PT communication not understood\n" + line)
         
         return done
 
@@ -347,8 +344,11 @@ class PluggableTransportClientSOCKSAdapter(PluggableTransportBaseAdapter):
                 self.transports[e[0]]["bindaddr"] = e[2]
                 self.logger.info("PT client transport {} configured, protocol"\
                                  " {} listening on {}".format(*e))
+                if e[1].lower() not in ('socks4', 'socks5'):
+                    self.logger.warning("Unexpected PT client transport protocol:")
+                    self.logger.warning(e)
             else:
-                self.logger.info("PT communication not understood: " + line)
+                self.logger.warning("PT communication not understood: " + line)
         
         return done
 

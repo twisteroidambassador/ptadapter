@@ -44,6 +44,37 @@ be established between server 127.0.0.1:7000 and clients 127.0.0.1:8000/8001/800
 
 # obfs4-standalone-tunnel
 
-Documentation WIP. Use `standalone-server.py` for server and 
-`standalone-client.py` for client. Also see respective `-config.ini` files for 
-commented example configurations.
+The two scripts, `standalone_server.py` and `standalone_client.py`, are wrappers
+around the `pluggabletransportadapter` libary. They allow running pluggable 
+transports such as `obfs4proxy` as standalone servers and clients, creating
+obfuscated tunnels carrying TCP traffic.
+
+## Requirements
+
+To use these scripts, you'll need:
+
+* The scripts themselves. Check the
+[Releases section](https://github.com/twisteroidambassador/pluggabletransportadapter/releases)
+for archives containing only the essentials, or do a `git checkout` for everything.
+
+* A compiled binary of the pluggable transport you wish to use. On many Linux
+distributions you can install them from the package repository. For Windows, it
+might be easiest to extract the binary from Tor Browser Bundle.
+
+* Python 3 for your operating system.
+
+* For the client, [`rsocks`](https://pypi.python.org/pypi/rsocks/0.2.2). Install
+it with `pip`.
+
+## Configuration
+
+The provided config files are commented in detail, and intended for testing.
+Follow them to write your own config files, but do not use them as-is.
+
+In particular, these provided files contain
+matching keys so an `obfs4` clients can authenticate and talk to the server. 
+**DO NOT use those keys for your own servers!** For `obfs4`, you *do not* need to
+specify keys in the configuration file. Just make sure the states directory is
+persistent and writable. After first run, the server will save its keys to the
+states directory and read it from there for future runs. It will also write the
+appropriate client parameters there.

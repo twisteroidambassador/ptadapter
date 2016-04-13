@@ -78,3 +78,18 @@ specify keys in the configuration file. Just make sure the states directory is
 persistent and writable. After first run, the server will save its keys to the
 states directory and read it from there for future runs. It will also write the
 appropriate client parameters there.
+
+# Ideas for future work
+
+`rsocks` isn't as portable as I'd like. It depends on `eventlet`, which in turn
+depends on `greenlet`, which is "provided as a C extension module for the 
+regular unmodified interpreter." Therefore, it is not possible to create a truly
+standalone bundle of Python scripts that will run with nothing but the Python 
+intepreter + standard libraries. This isn't a problem with full-blown OSes since
+`pip` is now included with Python, but it makes deployment on stripped-down OSes
+like OpenWrt difficult.
+
+Rewriting the TCP adapter to get rid of the `rsocks` dependency may make deployment
+easier. However, if some kind of asynchronous event library is not used, performance
+may suffer. Perhaps this is a good place to use Python's new `asyncio` package 
+(is it included in OpenWrt's base Python 3 package?)

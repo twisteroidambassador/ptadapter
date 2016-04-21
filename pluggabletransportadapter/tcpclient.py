@@ -1,8 +1,12 @@
 '''This module implements Tor's "managed proxy protocol", used for communication
 between Tor and pluggable transports.'''
 
-from rsocks.pool import ServerPool
-from rsocks.server import ReverseProxyServer
+#from rsocks.pool import ServerPool
+#from rsocks.server import ReverseProxyServer
+
+import asyncio
+import ipaddress
+from struct import pack, unpack
 
 from . import PluggableTransportClientSOCKSAdapter
 
@@ -11,6 +15,9 @@ class PluggableTransportClientTCPAdapter(PluggableTransportClientSOCKSAdapter):
     
     Listens for TCP connections on user-specified address:port, connect to 
     destination address:port, and forwards obfuscated traffic.'''
+    
+    RELAY_BUFFER_SIZE = 65535
+    PT_CONNECT_TIMEOUT = 10
     
     def __init__(self, ptexec, statedir, transports, upstream_proxy=None):
         '''Initialize class.
@@ -80,6 +87,90 @@ class PluggableTransportClientTCPAdapter(PluggableTransportClientSOCKSAdapter):
                     listener["options"] = a["options"]
                 self.transports[t]["listeners"].append(listener)
     
+    @asyncio.coroutine
+    def handle_relay_data(self, reader, writer):
+        '''Relay incoming data on reader to writer.'''
+        try:
+            while True:
+                buf = yield from reader.read(RELAY_BUFFER_SIZE)
+                if not buf:
+                    break
+                writer.write(buf)
+                yield from writer.drain()
+        except Exception as e:
+            self.logger.warning("relay data exception: {}".format(e))
+        finally:
+            writer.close()
+    
+    @asyncio.coroutine
+    def handle_reverse_proxy_connection(self, client_reader, client_writer, 
+            socks_protocol, socks_bindaddr, remote_addr, remote_port, 
+            pt_param = None):
+        
+        client_conn_string = "from {} on {}".format(
+                client_writer.get_extra_info("peername"), 
+                client_writer.get_extra_info("sockname"))
+        self.logger.info("Accepted connection " + client_conn_string)
+        
+        try:
+            socks_addrport = socks_bindaddr.rsplit(":", maxsplit=1)
+            
+            socks_writer = None
+            
+            if socks_protocol.lower() = "socks4":
+                # SOCKS4 proxies only accept IPv4 addresses
+                try:
+                    remote_ip = ipaddress.IPv4Address(remote_addr)
+                except AddressValueError:
+                    raise RuntimeError("PT SOCKS4 proxy only accepts IPv4 "
+                            "remote addresses, and {} is not a valid IPv4 "
+                            "address".format(remote_addr))
+            elif socks_protocol.lower() = "socks5":
+                try:
+                    remote_ip = ipaddress.ip_address(remote_addr)
+                except ValueError:
+                    # remote_addr is not a valid IPv4 or IPv6 address
+                    remote_ip = None
+            else:
+                raise RuntimeError("Unexpected PT proxy protocol {}".format(
+                            socks_protocol))
+            
+            try:
+                socks_reader, socks_writer = yield from asyncio.wait_for(
+                        asyncio.open_connection(socks_addrport[0], 
+                            int(socks_addrport[1]), loop=self.loop),
+                        timeout = PT_CONNECT_TIMEOUT)
+            except asyncio.TimeoutError:
+                raise RuntimeError("Connecting to PT timed out.")
+            
+            if socks_protocol.lower() = "socks4":
+                socks_writer.write(pack("!BBH", 4, 1, remote_port) + 
+                        remote_ip.packed + 
+                        (b"" if pt_param is None else pt_param.encode()) + 
+                        b"\x00")
+                yield from socks_writer.drain()
+                
+                buf = yield from socks_reader.readexactly(8)
+                if buf[0] != 0:
+                    raise RuntimeError("Malformed SOCKS4 reply {}".format(buf))
+                if buf[1] != 90:
+                    if buf[1] == 91:
+                        raise RuntimeError("SOCKS4 connection rejected or failed")
+                    else:
+                        raise RuntimeError("SOCKS4 connection failed, "
+                                "status code {}".format(buf[1]))
+                
+                self.logger.info("SOCKS4 negotiation successful for client "
+                        "connection " + client_conn_string)
+                
+            elif socks_protocol.lower() = "socks5":
+                if pt_param is None:
+                    socks_writer.write(b"\x05\x01\x00")
+                    yield from socks_writer.drain()
+                    buf = yield from socks_reader.readexactly(2)
+                    if buf[1] != 0:
+                        raise 
+    
     def start(self):
         '''Start the pluggable transport client.
         
@@ -89,6 +180,8 @@ class PluggableTransportClientTCPAdapter(PluggableTransportClientSOCKSAdapter):
         (which is blocking) to actually relay traffic!'''
         
         super().start()
+        
+        self.loop = asyncio.get_event_loop()
         
         self.rsockspool = ServerPool()
         

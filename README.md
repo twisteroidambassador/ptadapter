@@ -70,3 +70,13 @@ specify keys in the configuration file. Just make sure the states directory is
 persistent and writable. After first run, the server will save its keys to the
 states directory and read it from there for future runs. It will also write the
 appropriate client parameters there.
+
+# Ideas for Future Work
+
+Now that the reverse proxy is written in `asyncio`, it might make sense to rewrite
+the subprocess handling asynchronously as well.
+
+Also, with the script now being able to communicate to PT directly, implementing
+Extended ORPort support should not be too difficult. Extended ORPort would give
+us more detailed logging info for connected clients, as well as per-connection
+bandwidth control.

@@ -2,7 +2,8 @@ This repository is home to Pluggable Transport Adapter, a Python 3 package that
 interfaces with Tor's pluggable transports, and obfs4-standalone-tunnel, a set 
 of scripts to run pluggable transports as TCP tunnel.
 
-**This project REQUIRES Python 3.4 or higher.**
+**This project REQUIRES Python 3.4 or higher.** It only depends on the standard
+library, not on any optional packages.
 
 ## Motivation
 The motivation for this project comes from the desire of running 

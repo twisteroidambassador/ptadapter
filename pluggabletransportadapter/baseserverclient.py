@@ -50,22 +50,19 @@ class PluggableTransportBaseAdapter(object):
         
         try:
             if self.p.poll() is None:
+                self.logger.info("Terminating PT executable")
                 self.p.terminate()
         except NameError:
             # self.p does not exist
             pass
     
     def wait(self):
-        '''Block until PT executable exits. Terminates PT executable on
-        KeyboardInterrupt or SystemExit.
+        '''Block until PT executable exits.
         
         This method is intended to be used to keep the process/thread alive 
         when it has nothing else to do.'''
         
-        try:
-            self.p.wait()
-        except (KeyboardInterrupt, SystemExit):
-            self.terminate()
+        self.p.wait()
     
     def _parse_stdout_common(self, line):
         '''Parse data coming from PT executable's stdout.

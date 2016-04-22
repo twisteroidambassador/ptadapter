@@ -9,7 +9,7 @@ traffic.'''
 import logging
 import argparse
 import configparser
-import threading
+#import threading
 
 from pluggabletransportadapter import PluggableTransportClientTCPAdapter
 
@@ -55,8 +55,8 @@ def main_cli():
     logger.info("Read config file")
     
     # Suppress rsocks's logger
-    rsockslogger = logging.getLogger("rsocks")
-    rsockslogger.addHandler(logging.NullHandler())
+    #rsockslogger = logging.getLogger("rsocks")
+    #rsockslogger.addHandler(logging.NullHandler())
     
     # Build client configuration
     ptexec = config["common"]["exec"]
@@ -87,10 +87,11 @@ def main_cli():
     client.start()
     logger.debug("Available transports:")
     logger.debug(client.transports)
+    #client.loop.run_forever()
     
     # Start rsocks server loop
-    t = threading.Thread(target = client.rsocksloop, daemon=True)
-    t.start()
+    #t = threading.Thread(target = client.rsocksloop, daemon=True)
+    #t.start()
     
     # Wait until PT terminates, or terminate on Ctrl+C / SIGTERM
     try:

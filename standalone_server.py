@@ -9,6 +9,7 @@ traffic.'''
 import logging
 import argparse
 import configparser
+import signal, sys
 
 from pluggabletransportadapter import PluggableTransportServerAdapter
 
@@ -75,6 +76,7 @@ def main_cli():
     
     # Wait until PT terminates, or terminate on Ctrl+C / SIGTERM
     try:
+        signal.signal(signal.SIGTERM, sigterm_handler)
         server.wait()
     except (KeyboardInterrupt, SystemExit) as e:
         logger.info("Received {}".format(repr(e)))
@@ -82,6 +84,8 @@ def main_cli():
         logger.info("Terminating")
         server.terminate()
     
+def sigterm_handler(signal, frame):
+    sys.exit(0)
 
 if __name__ == "__main__":
     main_cli()

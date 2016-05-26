@@ -9,7 +9,7 @@ traffic.'''
 import logging
 import argparse
 import configparser
-#import threading
+import signal, sys
 
 from pluggabletransportadapter import PluggableTransportClientTCPAdapter
 
@@ -54,10 +54,6 @@ def main_cli():
     
     logger.info("Read config file")
     
-    # Suppress rsocks's logger
-    #rsockslogger = logging.getLogger("rsocks")
-    #rsockslogger.addHandler(logging.NullHandler())
-    
     # Build client configuration
     ptexec = config["common"]["exec"]
     statedir = config["common"]["statedir"]
@@ -87,14 +83,10 @@ def main_cli():
     client.start()
     logger.debug("Available transports:")
     logger.debug(client.transports)
-    #client.loop.run_forever()
-    
-    # Start rsocks server loop
-    #t = threading.Thread(target = client.rsocksloop, daemon=True)
-    #t.start()
     
     # Wait until PT terminates, or terminate on Ctrl+C / SIGTERM
     try:
+        signal.signal(signal.SIGTERM, sigterm_handler)
         client.wait()
     except (KeyboardInterrupt, SystemExit) as e:
         logger.info("Received {}".format(repr(e)))
@@ -102,6 +94,8 @@ def main_cli():
         logger.info("Terminating")
         client.terminate()
     
+def sigterm_handler(signal, frame):
+    sys.exit(0)
 
 if __name__ == "__main__":
     main_cli()

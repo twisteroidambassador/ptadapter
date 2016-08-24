@@ -86,11 +86,11 @@ class PluggableTransportBaseAdapter(object):
         
         stillneedwork = False
         
-        self.logger.debug("PT executable says: " + line)
+        self.logger.debug("PT executable says: {}".format(line))
         
         if line.startswith("ENV-ERROR"):
             self.logger.error("PT environment variable error, " 
-                              "Error message: " + line[10:])
+                              "Error message: {}".format(line[10:]))
             # PT executable should terminate, not raising exception
         elif line.startswith("VERSION"):
             if line == "VERSION 1":
@@ -181,8 +181,8 @@ class PluggableTransportServerAdapter(PluggableTransportBaseAdapter):
         if optionlist:
             self.env["TOR_PT_SERVER_TRANSPORT_OPTIONS"] = ";".join(optionlist)
         
-        self.logger.info("Environment variables prepared for server " + 
-                         self.ptexec)
+        self.logger.info("Environment variables prepared for server {}".format(
+                         self.ptexec))
         self.logger.debug("Environment variables:")
         self.logger.debug(self.env)
     
@@ -209,7 +209,7 @@ class PluggableTransportServerAdapter(PluggableTransportBaseAdapter):
         for t, o in self.transports.items():
             if not o["ready"] and not o["error"]:
                 # PT ignored this transport: not supported?
-                self.logger.warning("PT ignored transport " + t)
+                self.logger.warning("PT ignored transport {}".format(t))
         
         # The PT executable should not generate any more output, so closing or
         # not shouldn't make any difference
@@ -244,7 +244,8 @@ class PluggableTransportServerAdapter(PluggableTransportBaseAdapter):
                 self.logger.info("PT server transport '{}' configured, "
                                  "listening on {}".format(e[0], e[1]))
             else:
-                self.logger.warning("PT communication not understood\n" + line)
+                self.logger.warning("PT communication not understood: {}".
+                        format(line))
         
         return done
 
@@ -286,8 +287,8 @@ class PluggableTransportClientSOCKSAdapter(PluggableTransportBaseAdapter):
         if upstream_proxy is not None:
             self.env["TOR_PT_PROXY"] = upstream_proxy
         
-        self.logger.info("Environment variables prepared for client " + 
-                         self.ptexec)
+        self.logger.info("Environment variables prepared for client {}".format(
+                         self.ptexec))
         self.logger.debug("Environment variables:")
         self.logger.debug(self.env)
     
@@ -314,7 +315,7 @@ class PluggableTransportClientSOCKSAdapter(PluggableTransportBaseAdapter):
         for t, o in self.transports.items():
             if not o["ready"] and not o["error"]:
                 # PT ignored this transport: not supported?
-                self.logger.warning("PT ignored transport " + t)
+                self.logger.warning("PT ignored transport {}".format(t))
         
         # The PT executable should not generate any more output, so closing or
         # not shouldn't make any difference
@@ -334,7 +335,7 @@ class PluggableTransportClientSOCKSAdapter(PluggableTransportBaseAdapter):
         if self._parse_stdout_common(line):
             if line.startswith("PROXY-ERROR"):
                 self.logger.error("PT client proxy error, "
-                                  "error message: " + line[12:])
+                                  "error message: {}".format(line[12:]))
                 # PT executable should terminate, not raising exception
             elif line.startswith("PROXY DONE"):
                 self.logger.info("PT client proxy configuration done")
@@ -358,7 +359,8 @@ class PluggableTransportClientSOCKSAdapter(PluggableTransportBaseAdapter):
                     self.logger.warning("Unexpected PT client transport protocol:")
                     self.logger.warning(e)
             else:
-                self.logger.warning("PT communication not understood: " + line)
+                self.logger.warning("PT communication not understood: {}".
+                        format(line))
         
         return done
 
@@ -471,7 +473,7 @@ class PluggableTransportClientTCPAdapter(PluggableTransportClientSOCKSAdapter):
         client_conn_string = "{} -> {}".format(
                 client_writer.get_extra_info("peername"), 
                 client_writer.get_extra_info("sockname"))
-        self.logger.info("Accepted connection " + client_conn_string)
+        self.logger.info("Accepted connection {}".format(client_conn_string))
         
         try:
             socks_addrport = socks_bindaddr.rsplit(":", maxsplit=1)

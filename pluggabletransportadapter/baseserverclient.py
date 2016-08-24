@@ -3,10 +3,11 @@ between Tor and pluggable transports.'''
 
 import logging
 import subprocess
+import shlex
 import os
+import sys
 import asyncio
 import ipaddress
-from functools import partialmethod
 
 class PluggableTransportBaseAdapter(object):
     '''Base class for pluggable transport adapters.'''
@@ -15,16 +16,25 @@ class PluggableTransportBaseAdapter(object):
         '''Initialize class.
         
         Arguments:
-        ptexec: either string or sequence of the pluggable transport
-            executable. This is passed directly to Popen()'s 'args', so check its
-            documentation for details.
+        ptexec: either string or list specifying the pluggable transport
+            executable and optionally command line arguments.
+            If ptexec is a string, then:
+                On Windows, the string is passed directly to Popen().
+                On any other OS, the string is passed to shlex.split() first, 
+                then to Popen().
+            If ptexec is not a string (could be a list or tuple), then it is
+            always passed directly to Popen().
         statedir: string "TOR_PT_STATE_LOCATION". From pt-spec:
             A filesystem directory path where the
             PT is allowed to store permanent state if required. This
             directory is not required to exist, but the proxy SHOULD be able
             to create it if it does not.'''
         
-        self.ptexec = ptexec
+        if isinstance(ptexec, str) and sys.platform != 'win32':
+            # The subprocess module also checks for Windows using sys.platform
+            self.ptexec = shlex.split(ptexec)
+        else:
+            self.ptexec = ptexec
         
         # environment variables for PT
         self.env = {}

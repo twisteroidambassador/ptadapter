@@ -50,7 +50,7 @@ To use these scripts, you'll need:
 
 * The scripts themselves. Check the
 [Releases section](https://github.com/twisteroidambassador/pluggabletransportadapter/releases)
-for archives containing only the essentials, or do a `git checkout` for everything.
+to download a zip package, or just checkout with git.
 
 * A compiled binary of the pluggable transport you wish to use. On many Linux
 distributions you can install them from the package repository. For Windows, it

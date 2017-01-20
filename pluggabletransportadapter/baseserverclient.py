@@ -240,7 +240,10 @@ class PluggableTransportServerAdapter(PluggableTransportBaseAdapter):
                 e = line[8:].split(" ", 2)
                 self.transports[e[0]]["ready"] = True
                 self.transports[e[0]]["bindaddr"] = e[1]
-                self.transports[e[0]]["options"] = e[2]
+                try:
+                    self.transports[e[0]]["options"] = e[2]
+                except IndexError:
+                    self.transports[e[0]]["options"] = None
                 self.logger.info("PT server transport '{}' configured, "
                                  "listening on {}".format(e[0], e[1]))
             else:

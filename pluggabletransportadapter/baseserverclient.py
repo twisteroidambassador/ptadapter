@@ -2,126 +2,173 @@
 between Tor and pluggable transports.'''
 
 import logging
-import subprocess
 import shlex
 import os
 import sys
 import asyncio
 import ipaddress
 
-class PluggableTransportBaseAdapter(object):
+class Error(Exception):
+    '''Catchall exception for this package.'''
+    pass
+
+class PTExecError(Error, RuntimeError):
+    '''Runtime Errors related to the PT executable.'''
+    pass
+
+class PTExecSMethodError(PTExecError):
+    '''PT SMETHOD-ERROR messages.'''
+    pass
+
+class PluggableTransportBaseAdapter():
     '''Base class for pluggable transport adapters.'''
     
-    def __init__(self, ptexec, statedir):
+    def __init__(self, ptexec, statedir, loop=None):
         '''Initialize class.
         
         Arguments:
         ptexec: either string or list specifying the pluggable transport
             executable and optionally command line arguments.
-            If ptexec is a string, then:
-                On Windows, the string is passed directly to Popen().
-                On any other OS, the string is passed to shlex.split() first, 
-                then to Popen().
-            If ptexec is not a string (could be a list or tuple), then it is
-            always passed directly to Popen().
+            If ptexec is a string, it is passed through shlex.split() first.
         statedir: string "TOR_PT_STATE_LOCATION". From pt-spec:
             A filesystem directory path where the
             PT is allowed to store permanent state if required. This
             directory is not required to exist, but the proxy SHOULD be able
-            to create it if it does not.'''
+            to create it if it does not.
+        loop: asyncio event loop to use. If not specified, will use 
+            ProactorEvetnLoop on Windows, and the default (probably 
+            SelectorEventLoop) on other platforms.'''
         
-        if isinstance(ptexec, str) and sys.platform != 'win32':
-            # The subprocess module also checks for Windows using sys.platform
+        self.logger = logging.getLogger("pluggabletransportadapter")
+        
+        if isinstance(ptexec, str):
             self.ptexec = shlex.split(ptexec)
         else:
             self.ptexec = ptexec
         
         # environment variables for PT
         self.env = {}
-        # Under Windows, obfs4proxy requires some environment variables to be 
-        # set, otherwise it throws cryptic error messages like "The requested 
-        # service provider could not be loaded or initialized".
+        # Python docs on subprocess.Popen:
+        # If specified, env must provide any variables required for the program
+        # to execute. On Windows, in order to run a side-by-side assembly the 
+        # specified env must include a valid SystemRoot. 
         if "SystemRoot" in os.environ: 
             self.env["SystemRoot"] = os.environ["SystemRoot"]
             
         self.env["TOR_PT_MANAGED_TRANSPORT_VER"] = "1"
         self.env["TOR_PT_STATE_LOCATION"] = statedir
+        self.env['TOR_PT_EXIT_ON_STDIN_CLOSE'] = '1'
         
-        self.logger = logging.getLogger("pluggabletransportadapter")
+        if not loop:
+            if sys.platform != 'win32':
+                self.loop = asyncio.get_event_loop()
+            else:
+                # Use ProactorEventLoop on Windows
+                self.loop = asyncio.ProactorEventLoop()
+                asyncio.set_event_loop(self.loop)
+        else:
+            self.loop = loop
     
-    def run_ptexec(self):
-        '''Run PT executable.
+    def get_event_loop(self):
+        '''Return the event loop used.'''
         
-        Provides the appropriate enviroment variables.
-        Stores the Popen object of the subprocess so its stdout can be read.'''
-        
-        self.p = subprocess.Popen(self.ptexec, stdout=subprocess.PIPE,
-                                  env=self.env, universal_newlines=True)
+        return self.loop
     
-    def terminate(self):
-        '''Terminate the PT executable.'''
+    def start(self):
+        '''Start the PT executable and save the corresponding Task object.
         
-        try:
-            if self.p.poll() is None:
-                self.logger.info("Terminating PT executable")
-                self.p.terminate()
-        except NameError:
-            # self.p does not exist
-            pass
+        Don't forget to actually run the event loop.'''
+        
+        self.run_task = asyncio.async(self.run())
+    
+    def stop(self):
+        '''Terminate the PT executable.
+        
+        Once stopped, the Adapter object should not be reused.'''
+        
+        self.run_task.cancel()
     
     def wait(self):
-        '''Block until PT executable exits.
+        '''Run the event loop until run_task finishes.'''
         
-        This method is intended to be used to keep the process/thread alive 
-        when it has nothing else to do.'''
-        
-        self.p.wait()
+        self.loop.run_until_complete(self.run_task)
     
-    def _parse_stdout_common(self, line):
-        '''Parse data coming from PT executable's stdout.
+    @asyncio.coroutine
+    def run(self):
+        '''Run and respond to the PT executable.
         
-        This method takes care of the common messages that apply to both servers
-        and clients, and returns False if the message is understood and True
-        otherwise (so subclasses can continue to parse it).'''
+        Creates the PT subprocess asynchronously, read its STDOUT, parse and 
+        react accordingly, and terminate the process upon task cancellation.'''
         
-        stillneedwork = False
+        p = None
         
-        self.logger.debug("PT executable says: {}".format(line))
+        try:
+            p = yield from asyncio.create_subprocess_exec(*self.ptexec, 
+                    loop=self.loop, stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE, env=self.env)
+            
+            self.logger.debug('PT executable started')
+            
+            while True:
+                s = (yield from p.stdout.readline()).decode('utf-8',errors='backslashreplace').rstrip()
+                self.logger.debug('PT stdout: %s', s)
+                if not s:
+                    raise PTExecError('PT exec closed STDOUT', '')
+                
+                self.pt_stdout_line(s)
+                
+        except asyncio.CancelledError as e:
+            self.logger.debug('PT run task cancelled')
+        finally:
+            if p:
+                # first try terminating via closing STDIN
+                self.logger.debug('Attempting to terminate PT by closing STDIN')
+                p.stdin.close()
+                # wait 5 seconds for the process to shut down
+                try:
+                    yield from asyncio.wait_for(p.wait(), 5)
+                except asyncio.TimeoutError:
+                    self.logger.debug('PT did not terminate after closing STDIN')
+                    self.logger.debug('Attempting to to call terminate() on PT')
+                    p.terminate()
+                    yield from p.wait()
+                finally:
+                    self.logger.debug('PT terminated')
+    
+    def pt_stdout_line(self, line):
+        '''Parse and react to one line from PT's STDOUT.
         
-        if line.startswith("ENV-ERROR"):
-            self.logger.error("PT environment variable error, " 
-                              "Error message: {}".format(line[10:]))
-            # PT executable should terminate, not raising exception
-        elif line.startswith("VERSION"):
-            if line == "VERSION 1":
-                self.logger.debug("Using protocol version 1 as expected")
-            elif line.startswith("VERSION-ERROR"):
-                self.logger.error("PT managed proxy protocol version error")
-                # PT executable should terminate, not raising exception
+        Subclasses are expected to extend this method to parse additional
+        keywords. See PT specs.'''
+        
+        kw, _, args = line.partition(' ')
+        
+        if kw == 'VERSION-ERROR':
+            self.logger.error('PT spec version error')
+            raise PTExecError(line)
+        elif kw == 'VERSION':
+            self.logger.debug('PT using spec version %s', args)
+        elif kw == 'ENV-ERROR':
+            self.logger.error('PT environment variables error: %s', line)
+            raise PTExecError(line)
         else:
-            stillneedwork = True
-        
-        return stillneedwork
+            self.logger.warning('Unexpected PT STDOUT communication: %s', line)
  
 class PluggableTransportServerAdapter(PluggableTransportBaseAdapter):
     '''Adapter for pluggable transport running as server.
     
     Listens on one or more TCP port(s), accepts obfuscated traffic on each port
-    (optionally with different protocols on each port), and forwards plaintext 
-    traffic to one TCP address:port.'''
+    (with different protocols on each port), and forwards plaintext 
+    traffic to one TCP address:port.
     
-    def __init__(self, ptexec, statedir, orport, transports):
+    Future objects are provided for each transport protocol and for the 
+    overall server, which can be awaited or have callbacks attached to.'''
+    
+    def __init__(self, ptexec, statedir, orport, transports, loop=None):
         '''Initialize class.
         
         Arguments:
-        ptexec: either string or sequence of of the pluggable transport
-            executable. This is passed directly to Popen(), so check its
-            documentation for details.
-        statedir: string "TOR_PT_STATE_LOCATION". From pt-spec:
-            A filesystem directory path where the
-            PT is allowed to store permanent state if required. This
-            directory is not required to exist, but the proxy SHOULD be able
-            to create it if it does not.
+        See PluggableTransportBaseAdapters for ptexec, statedir, loop.
         orport: string "TOR_PT_ORPORT". 
             The <address>:<port> of the ORPort of the
             bridge where the PT is supposed to send the deobfuscated
@@ -157,17 +204,18 @@ class PluggableTransportServerAdapter(PluggableTransportBaseAdapter):
             ServerTransportOptions trebuchet rocks=20 height=5.6m
         '''
         
-        # Python 2 compatibility note: specify parameters for super()
-        super().__init__(ptexec, statedir)
+        super().__init__(ptexec, statedir, loop=loop)
+        
         self.env["TOR_PT_ORPORT"] = orport
         
         self.transports = {}
+        self.server_ready = asyncio.Future()
         
         transportlist = []
         optionlist = []
         bindaddrlist = []
         for t, o in transports.items():
-            self.transports[t] = {"ready": False, "error": False}
+            self.transports[t] = asyncio.Future()
             transportlist.append(t)
             if "bindaddr" in o:
                 bindaddrlist.append(t + "-" + o["bindaddr"])
@@ -181,76 +229,41 @@ class PluggableTransportServerAdapter(PluggableTransportBaseAdapter):
         if optionlist:
             self.env["TOR_PT_SERVER_TRANSPORT_OPTIONS"] = ";".join(optionlist)
         
-        self.logger.info("Environment variables prepared for server {}".format(
-                         self.ptexec))
         self.logger.debug("Environment variables:")
         self.logger.debug(self.env)
     
-    def start(self):
-        '''Start the pluggable transport server.
+    def pt_stdout_line(self, line):
+        kw, _, args = line.partition(' ')
         
-        Once complete, PT executable should be listening for incoming 
-        obfuscated TCP traffic on the requested bindaddr(s), and forwarding 
-        plaintext TCP traffic to orport. self.transports reflects the status 
-        and bound address/port of activated transports.'''
+        if kw == 'SMETHOD':
+            args_l = args.split(' ', maxsplit=2)
+            trans = args_l[0]
+            res = {'address': args_l[1], 'options': None}
+            try:
+                res['options'] = args_l[2]
+            except IndexError:
+                pass
+            
+            self.transports[trans].set_result(res)
+            self.logger.info('PT server transport %s ready, listening on %s, options %s', trans, res['address'], res['options'])
+            
+        elif kw == 'SMETHOD-ERROR':
+            trans = args.partition(' ')[0]
+            self.logger.warning('PT server transport %s error: %s', trans, line)
+            self.transports[trans].set_exception(PTExecSMethodError(line))
+            
+        elif kw == 'SMETHODS' and args == 'DONE':
+            self.logger.info('PT server initialization complete')
+            for trans,fut in self.transports.items():
+                if not fut.done():
+                    self.logger.warning('PT server transport %s still not ready, possibly ignored', trans)
+                    fut.set_result(None)
+            self.server_ready.set_result(True)
         
-        self.run_ptexec()
-        
-        # Python 2 compatibility note: Python 2 gets stuck at the following 
-        # loop, and presumably at corresponding location in Client*Adapters.
-        # Not sure why. Rewriting loop with explicit readline() should help.
-        for line in self.p.stdout:
-            if self.parse_stdout(line.strip()): break
         else:
-            # fell through the loop: PT executable terminated
-            self.logger.error("PT executable terminated")
-            return False
-        
-        for t, o in self.transports.items():
-            if not o["ready"] and not o["error"]:
-                # PT ignored this transport: not supported?
-                self.logger.warning("PT ignored transport {}".format(t))
-        
-        # The PT executable should not generate any more output, so closing or
-        # not shouldn't make any difference
-        self.p.stdout.close()
-        
-        return True
+            super().pt_stdout_line(line)
+            
     
-    def parse_stdout(self, line):
-        '''Parse data coming from PT executable's stdout.
-        
-        This method parses common and server-specific messages. Returns True if
-        a "SMETHOD DONE" message signalling completion is received, and False 
-        otherwise.'''
-        
-        done = False
-        
-        if self._parse_stdout_common(line):
-            if line.startswith("SMETHOD-ERROR"):
-                e = line[14:].split(" ", 1)
-                self.transports[e[0]]["error"] = True
-                self.transports[e[0]]["errormessage"] = e[1]
-                self.logger.error("PT server transport '{}' error, "
-                                  "error message: {}".format(*e))
-            elif line.startswith("SMETHODS DONE"):
-                self.logger.info("PT server configuration complete")
-                done = True
-            elif line.startswith("SMETHOD "):
-                e = line[8:].split(" ", 2)
-                self.transports[e[0]]["ready"] = True
-                self.transports[e[0]]["bindaddr"] = e[1]
-                try:
-                    self.transports[e[0]]["options"] = e[2]
-                except IndexError:
-                    self.transports[e[0]]["options"] = None
-                self.logger.info("PT server transport '{}' configured, "
-                                 "listening on {}".format(e[0], e[1]))
-            else:
-                self.logger.warning("PT communication not understood: {}".
-                        format(line))
-        
-        return done
 
 class PluggableTransportClientSOCKSAdapter(PluggableTransportBaseAdapter):
     '''Adapter for pluggable transport running as "bare" SOCKS client.

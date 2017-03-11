@@ -10,8 +10,19 @@ import logging
 import argparse
 import configparser
 import signal, sys
+import asyncio
 
 from pluggabletransportadapter import PluggableTransportServerAdapter
+
+def noop_callback(loop, delay):
+    '''Do nothing and schedule to do nothing later.
+    
+    This is a workaround for Python Issue 23057 in Windows
+    ( https://bugs.python.org/issue23057 ), where signals like KeyboardInterrupt
+    will not be delivered in an event loop if nothing is happening. A regular 
+    callback allows such signals to be delivered. '''
+    
+    loop.call_later(delay, noop_callback, loop, delay)
 
 def main_cli():
     # Argument Parsing
@@ -52,7 +63,7 @@ def main_cli():
     config.read_file(args.configfile)
     args.configfile.close()
     
-    logger.info("Read config file")
+    logger.debug("Config file loaded")
     
     ptexec = config["common"]["exec"]
     statedir = config["common"]["statedir"]
@@ -68,23 +79,34 @@ def main_cli():
     logger.debug("Transports:")
     logger.debug(transports)
     
-    # Start PT executable
+    # Start PT
     server = PluggableTransportServerAdapter(ptexec, statedir, orport, transports)
+    loop = server.get_event_loop()
+    #loop.set_debug(True)
+    
     server.start()
-    logger.debug("Available transports:")
-    logger.debug(server.transports)
+    
+    if sys.platform == 'win32':
+        # Workaround to get KeyboardInterrupt working
+        noop_callback(loop, 1)
     
     # Wait until PT terminates, or terminate on Ctrl+C / SIGTERM
     try:
         signal.signal(signal.SIGTERM, sigterm_handler)
         server.wait()
+        logger.warning('PT exited unexpectedly')
     except (KeyboardInterrupt, SystemExit) as e:
-        logger.info("Received {}".format(repr(e)))
+        logger.info("%s was raised", repr(e))
+        logger.debug('server.stop()')
+        server.stop()
+        loop.run_forever() # Event loop will stop anyways when server run_task is complete
     finally:
-        logger.info("Terminating")
-        server.terminate()
+        #loop.run_until_complete(server.run_task)
+        logger.info("server script terminated")
+    
     
 def sigterm_handler(signal, frame):
+    logger.info('Received %s', signal)
     sys.exit(0)
 
 if __name__ == "__main__":

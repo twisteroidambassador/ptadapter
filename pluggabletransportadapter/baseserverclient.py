@@ -93,6 +93,13 @@ class PluggableTransportBaseAdapter():
         
         self.loop.run_until_complete(self.run_task)
     
+    def cancel_all_futures(self):
+        '''Call cancel() on all futures that may still be pending.
+        
+        Return a list containing all such futures.'''
+        
+        return []
+        
     @asyncio.coroutine
     def run(self):
         '''Run and respond to the PT executable.
@@ -134,6 +141,12 @@ class PluggableTransportBaseAdapter():
                     yield from p.wait()
                 finally:
                     self.logger.debug('PT terminated')
+        
+        try:
+            yield from asyncio.gather(*self.cancel_all_futures())
+        except Error:
+            self.logger.debug('Leftover exception', exc_info=True)
+            pass
     
     def pt_stdout_line(self, line):
         '''Parse and react to one line from PT's STDOUT.
@@ -232,6 +245,18 @@ class PluggableTransportServerAdapter(PluggableTransportBaseAdapter):
         self.logger.debug("Environment variables:")
         self.logger.debug(self.env)
     
+    def cancel_all_futures(self):
+        s = super().cancel_all_futures()
+        
+        for trans,fut in self.transports.items():
+            fut.cancel()
+            s.append(fut)
+        
+        self.server_ready.cancel()
+        s.append(self.server_ready)
+        
+        return s
+    
     def pt_stdout_line(self, line):
         kw, _, args = line.partition(' ')
         
@@ -276,14 +301,7 @@ class PluggableTransportClientSOCKSAdapter(PluggableTransportBaseAdapter):
         '''Initialize class.
         
         Arguments:
-        ptexec: either string or sequence of of the pluggable transport
-            executable. This is passed directly to Popen(), so check its
-            documentation for details.
-        statedir: string "TOR_PT_STATE_LOCATION". From pt-spec:
-            A filesystem directory path where the
-            PT is allowed to store permanent state if required. This
-            directory is not required to exist, but the proxy SHOULD be able
-            to create it if it does not.
+        See PluggableTransportBaseAdapters for ptexec, statedir, loop.
         transports: either a list of transport names, or a dictionary
             where the keys are transport names.
         upstream_proxy: string indicating the upstream proxy PT must use.
@@ -292,19 +310,17 @@ class PluggableTransportClientSOCKSAdapter(PluggableTransportBaseAdapter):
                      socks4a://198.51.100.2:8001
         '''
         
-        # Python 2 compatibility note: specify parameters for super()
-        super().__init__(ptexec, statedir)
+        super().__init__(ptexec, statedir, loop=loop)
         
         self.transports = {}
+        self.client_ready = asyncio.Future()
         
         for t in transports:
-            self.transports[t] = {"ready": False, "error": False}
+            self.transports[t] = asyncio.Future()
         self.env["TOR_PT_CLIENT_TRANSPORTS"] = ",".join(transports)
         if upstream_proxy is not None:
             self.env["TOR_PT_PROXY"] = upstream_proxy
         
-        self.logger.info("Environment variables prepared for client {}".format(
-                         self.ptexec))
         self.logger.debug("Environment variables:")
         self.logger.debug(self.env)
     

@@ -12,17 +12,9 @@ import configparser
 import signal, sys
 import asyncio
 
-from pluggabletransportadapter import PluggableTransportServerAdapter
+import pluggabletransportadapter
+#from pluggabletransportadapter import PTServerAdapter
 
-def noop_callback(loop, delay):
-    '''Do nothing and schedule to do nothing later.
-    
-    This is a workaround for Python Issue 23057 in Windows
-    ( https://bugs.python.org/issue23057 ), where signals like KeyboardInterrupt
-    will not be delivered in an event loop if nothing is happening. A regular 
-    callback allows such signals to be delivered. '''
-    
-    loop.call_later(delay, noop_callback, loop, delay)
 
 def main_cli():
     # Argument Parsing
@@ -80,15 +72,14 @@ def main_cli():
     logger.debug(transports)
     
     # Start PT
-    server = PluggableTransportServerAdapter(ptexec, statedir, orport, transports)
-    loop = server.get_event_loop()
+    loop = pluggabletransportadapter.get_event_loop()
+    asyncio.set_event_loop(loop)
+    server = pluggabletransportadapter.PTServerAdapter(loop, ptexec, statedir, orport, transports)
     #loop.set_debug(True)
     
     server.start()
     
-    if sys.platform == 'win32':
-        # Workaround to get KeyboardInterrupt working
-        noop_callback(loop, 1)
+    pluggabletransportadapter.windows_async_signal_helper(loop)
     
     # Wait until PT terminates, or terminate on Ctrl+C / SIGTERM
     try:
@@ -103,6 +94,7 @@ def main_cli():
     finally:
         #loop.run_until_complete(server.run_task)
         logger.info("server script terminated")
+        loop.close()
     
     
 def sigterm_handler(signal, frame):

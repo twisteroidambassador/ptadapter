@@ -10,8 +10,10 @@ import logging
 import argparse
 import configparser
 import signal, sys
+import asyncio
 
-from pluggabletransportadapter import PluggableTransportClientTCPAdapter
+import pluggabletransportadapter
+#from pluggabletransportadapter import PluggableTransportClientTCPAdapter
 
 def main_cli():
     # Argument Parsing
@@ -27,7 +29,7 @@ def main_cli():
     args = parser.parse_args()
     
     # Logging
-    logger = logging.getLogger("")
+    logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
     
     logconsole = logging.StreamHandler()
@@ -65,34 +67,42 @@ def main_cli():
     transports = {}
     for s, t in config.items("transports"):
         tr = {
-            "listenaddr": (config[s]["listen-addr"], int(config[s]["listen-port"])),
-            "remoteaddr": (config[s]["server-addr"], int(config[s]["server-port"]))
+            "listen_host": config[s]["listen-addr"],
+            "listen_port": int(config[s]["listen-port"]),
+            "remote_host": config[s]["server-addr"],
+            "remote_port": int(config[s]["server-port"])
             }
         opt = {o[8:]:v for (o,v) in config.items(s) if o[:8] == "options-"}
         if opt: tr["options"] = opt
         
         if not t in transports:
-            transports[t] = []
-        transports[t].append(tr)
+            transports[t] = {}
+        transports[t][s] = tr
     
     logger.debug("Transports:")
     logger.debug(transports)
     
     # Start PT executable
-    client = PluggableTransportClientTCPAdapter(ptexec, statedir, transports, upstream_proxy)
+    loop = pluggabletransportadapter.get_event_loop()
+    asyncio.set_event_loop(loop)
+    client = pluggabletransportadapter.PTClientListeningAdapter(loop, ptexec, statedir, transports, upstream_proxy)
     client.start()
-    logger.debug("Available transports:")
-    logger.debug(client.transports)
+    
+    pluggabletransportadapter.windows_async_signal_helper(loop)
     
     # Wait until PT terminates, or terminate on Ctrl+C / SIGTERM
     try:
         signal.signal(signal.SIGTERM, sigterm_handler)
         client.wait()
+        logger.warning('PT exited unexpectedly')
     except (KeyboardInterrupt, SystemExit) as e:
         logger.info("Received {}".format(repr(e)))
+        client.stop()
+        loop.run_forever()
     finally:
         logger.info("Terminating")
-        client.terminate()
+        loop.close()
+        
     
 def sigterm_handler(signal, frame):
     sys.exit(0)

@@ -114,11 +114,15 @@ class StreamRelay:
     def close(self):
         """Terminate the server and all active connections."""
         self._logger.debug('StreamRelay closing')
-        self._server.close()
+        wait_list = []
+        self._server_task.cancel()
+        wait_list.append(self._server_task)
+        if self._server is not None:
+            self._server.close()
+            wait_list.append(self._server)
         for conn in self._connections:
             conn.cancel()
-        yield from asyncio.gather(self._server.wait_closed(), 
-                                  *self._connections,
+        yield from asyncio.gather(*wait_list, *self._connections,
                                   return_exceptions=True)
 
 

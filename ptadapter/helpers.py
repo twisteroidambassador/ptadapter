@@ -39,12 +39,10 @@ def windows_async_signal_helper(loop, interval=0.2):
     is happening. A regular callback allows such signals to be 
     delivered. 
     """
-    
     if sys.platform == 'win32':
         noop_callback(loop, interval)
 
 
 def noop_callback(loop, delay):
     """Do nothing and schedule to do nothing later."""
-    
     loop.call_later(delay, noop_callback, loop, delay)

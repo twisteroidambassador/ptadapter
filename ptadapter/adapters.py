@@ -26,7 +26,7 @@ class PTBaseAdapter():
         Windows.
         
         ptexec: pluggable transport executable and command line args.
-        Can be a string (passed through shlex.split() first) or a list.
+        Can be a string (will go through shlex.split() first) or a list.
         
         statedir: "A filesystem directory path where the PT is allowed
         to store permanent state if required. This directory is not
@@ -106,7 +106,7 @@ class PTBaseAdapter():
                 self._pt_stdout_line(s)
         except asyncio.CancelledError as e:
             self._logger.debug('PT run task cancelled')
-            #raise
+            raise
         except PTExecError:
             self._logger.error('PT encountered an error', exc_info=True)
         finally:
@@ -266,6 +266,47 @@ class PTServerAdapter(PTBaseAdapter):
             super()._pt_stdout_line(line)
     
 
+class PTServerStreamAdapter(PTServerAdapter):
+    """Run a pluggable transport as server and receive data from it.
+    
+    Listens on one or more TCP port(s) (different protocols for each),
+    and provides a StreamReader/Writer pair to a callback for incoming
+    connections. Optionally an access control callback can also be
+    used.
+    
+    Information about the connecting client will be made available
+    """
+    
+    def __init__(self, loop, ptexec, statedir, transports, cookie_file,
+                 extorport=None):
+        """Initialize class.
+        
+        loop, ptexec, statedir: See PTBaseAdapter.
+        
+        transports: see PTServerAdapter.
+        
+        cookie_file: full path+filename of a writable location, where
+        an authentication cookie file will be generated. This location
+        should only be readable by `self` and PT.
+        
+        extorport: optional, the <address>:<port> where unobfuscated 
+        traffic and client information will be sent from PT, and where
+        `self` will listen for said traffic. It's a bad idea to set this
+        to a non-localhost address. If unspecified, defaults to 
+        127.0.0.1:<random available port>, which is the correct choice
+        in most cases.
+        """
+        super().__init__(self, loop, ptexec, statedir, 0, transports)
+        del self._env['TOR_PT_ORPORT']
+        self._extorport = extorport
+        if extorport is not None:
+            host, port = extorport.rpartition(':')
+            self._ext_host = host
+            self._ext_port = int(port)
+        else:
+            self._ext_host = '127.0.0.1'
+            self._ext_port = 0
+    
 class PTClientSOCKSAdapter(PTBaseAdapter):
     """Run a pluggable transport as a bare SOCKS proxy.
     
@@ -286,7 +327,7 @@ class PTClientSOCKSAdapter(PTBaseAdapter):
         upstream_proxy: string indicating the upstream proxy PT must use.
         Format: <proxy_type>://[<user_name>][:<password>][@]<ip>:<port>
         Accepted proxy_type are "http", "socks5", "socks4a".
-        Accepted 
+        
         Example: socks5://tor:test1234@198.51.100.1:8000
                  socks4a://198.51.100.2:8001
         """

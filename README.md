@@ -1,9 +1,9 @@
 This repository is home to Pluggable Transport Adapter, a Python 3 package that 
-interfaces with Tor's pluggable transports, and obfs4-standalone-tunnel, a set 
-of scripts to run pluggable transports as TCP tunnel.
+interfaces with Tor's pluggable transports, plus a script to run pluggable 
+transports as TCP tunnel.
 
-**This project REQUIRES Python 3.4 or higher.** It only depends on the standard
-library, not on any optional packages.
+**This project REQUIRES Python 3.4.2 or higher.** Other than the standard 
+library, it has no dependencies.
 
 ## Motivation
 The motivation for this project comes from the desire of running 
@@ -15,34 +15,42 @@ so I implemented enough of [Tor's pluggable transport specification]
 support standalone operation as server or client, in a way that's hopefully 
 reusable for other projects.
 
-# pluggabletransportadapter
+# ptadapter
+
+The package used to be called `pluggabletransportadapter`, but that name is 
+rather long and cumbersome, so it has been renamed to the shorter version.
 
 This package implements Tor's pluggable transport protocol, in order to run 
 and control pluggable transports (PT).
 
-This package requires Python 3.4 or higher.
+This package requires Python 3.4.2 or higher.
 
-It implements 3 classes: `PluggableTransportServerAdapter`, 
-`PluggableTransportClientSOCKSAdapter` and `PluggableTransportClientTCPAdapter`.
+These classes are implemented: `PTServerAdapter`, `PTClientSOCKSAdapter`, 
+`PTClientStreamAdapter`, `PTClientListeningAdapter`.
 
-`PluggableTransportServerAdapter` runs PT executable as a server, listening on
-a TCP port for obfuscated traffic and forwards plaintext traffic to a given
-address:port.
+`PTServerAdapter` runs PT executable as a server, listening on TCP ports for 
+obfuscated traffic and forwards plaintext traffic to a given address:port. 
+Obfuscated traffic hit the PT executable directly, and unobfuscated traffic
+is emitted by the PT executable; the script has no idea about client 
+connections.
 
-`PluggableTransportClientSOCKSAdapter` runs PT executable as a client, where the
-PT listens on address:port of its choice, accepts either SOCKS4 or SOCKS5 
-connection attempts, obfuscates the traffic and forwards it to a server.
+`PTClientSOCKSAdapter` runs PT executable as a client, where the PT listens on 
+an address:port of its choice, accepts either SOCKS4 or SOCKS5 connection 
+attempts, obfuscates the traffic and forwards it to a server.
 
-`PluggableTransportClientTCPAdapter` runs PT executable as a client and 
-additionally handles SOCKS reverse proxying, accepting plaintext traffic 
-directly on a TCP address:port.
+`PTClientStreamAdapter` does what `PTClientSOCKSAdapter` does, and provides 
+convenient methods for creating StreamReader/Writer pairs that talks through the
+PT.
 
-# obfs4-standalone-tunnel
+`PTClientListeningAdapter` does what `PTClientStreamAdapter` does. In addition
+it listens for plaintext traffic on a TCP address:port and forwards them 
+through the PT.
 
-The two scripts, `standalone_server.py` and `standalone_client.py`, are wrappers
-around the `pluggabletransportadapter` libary. They allow running pluggable 
-transports such as `obfs4proxy` as standalone servers and clients, creating
-obfuscated tunnels carrying TCP traffic.
+# The script
+
+The script `standalone.py` allows running pluggable transports such as 
+`obfs4proxy` as standalone servers and clients. Run one copy as client and
+another as server to create obfuscated tunnels.
 
 ## Requirements
 
@@ -56,7 +64,7 @@ to download a zip package, or just checkout with git.
 distributions you can install them from the package repository. For Windows, it
 might be easiest to extract the binary from Tor Browser Bundle.
 
-* Python 3.4 or higher for your operating system.
+* Python 3.4.2 or higher for your operating system.
 
 ## Configuration
 
@@ -71,12 +79,20 @@ persistent and writable. After first run, the server will save its keys to the
 states directory and read it from there for future runs. It will also write the
 appropriate client parameters there.
 
+## Some notes
+
+The reason I'm targetting Python 3.4.2 is that Debian Jessie has that version
+in the official repository, and it has `loop.create_task()` so I don't have to
+use `asyncio.async()` where `async` is a reserved keyword in Python 3.5 and 
+later.
+
+Since communication to the PT executable is now via `asyncio` subprocess pipes,
+on Windows the event loop must be a `ProactorEventLoop`, not the default 
+`SelectorEventLoop`.
+
 # Ideas for Future Work
 
-Now that the reverse proxy is written in `asyncio`, it might make sense to rewrite
-the subprocess handling asynchronously as well.
-
-Also, with the script now being able to communicate to PT directly, implementing
-Extended ORPort support should not be too difficult. Extended ORPort would give
-us more detailed logging info for connected clients, as well as per-connection
-bandwidth control.
+Extended ORPort support is still work in progress. Turns out per-connection
+bandwidth control and throttling was never implemented in Tor and PTs, so the
+only benefit of ExtORPort is that the server script can know where clients are 
+connecting from, and potentially refuse connections.

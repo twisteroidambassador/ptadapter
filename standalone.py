@@ -19,7 +19,7 @@ def main_cli():
               'transport as standalone server or client.')
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--server', '-S', action='store_true', help='Run as the '
-            'server end of a tunnel.')
+            'server end of a tunnel. Does not support --access-log yet.')
     group.add_argument('--client', '-C', action='store_true', help='Run as the '
             'client end of a tunnel.')
     parser.add_argument('configfile', type=argparse.FileType('r'), help=
@@ -125,10 +125,22 @@ def get_client(config, loop):
             transports[t] = {}
         transports[t][s] = tr
     
-    return ptadapter.PTClientListeningAdapter(loop, ptexec, statedir, transports, upstream_proxy)
+    return ptadapter.PTClientListeningAdapter(loop, ptexec, statedir, 
+                                              transports, upstream_proxy)
 
-def get_server(config):
-    raise NotImplementedError
+def get_server(config, loop):
+    # Build server configuration
+    ptexec = config["common"]["exec"]
+    statedir = config["common"]["statedir"]
+    orport = config["common"]["forward"]
+    
+    transports = {}
+    for t, b in config.items("transports"):
+        transports[t] = {"bindaddr": b}
+        if config.has_section(t + "-options"):
+            transports[t]["options"] = dict(config.items(t + "-options"))
+    
+    return ptadapter.PTServerAdapter(loop, ptexec, statedir, orport, transports)
     
 def sigterm_handler(signal, frame):
     sys.exit(0)

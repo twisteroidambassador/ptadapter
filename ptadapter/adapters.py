@@ -267,7 +267,9 @@ class PTServerAdapter(PTBaseAdapter):
     
 
 class PTServerStreamAdapter(PTServerAdapter):
-    """Run a pluggable transport as server and receive data from it.
+    """XXX: work in progress.
+    
+    Run a pluggable transport as server and receive data from it.
     
     Listens on one or more TCP port(s) (different protocols for each),
     and provides a StreamReader/Writer pair to a callback for incoming

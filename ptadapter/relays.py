@@ -122,8 +122,8 @@ class StreamRelay:
             wait_list.append(self._server)
         for conn in self._connections:
             conn.cancel()
-        yield from asyncio.gather(*wait_list, *self._connections,
-                                  return_exceptions=True)
+        wait_list.extend(self._connections)
+        yield from asyncio.gather(*wait_list, return_exceptions=True)
 
 
 class ProxyNegotiator():

@@ -74,10 +74,11 @@ Follow them to write your own config files, but do not use them as-is.
 In particular, these provided files contain
 matching keys so an `obfs4` clients can authenticate and talk to the server. 
 **DO NOT use those keys for your own servers!** For `obfs4`, you *do not* need to
-specify keys in the configuration file. Just make sure the states directory is
-persistent and writable. After first run, the server will save its keys to the
+specify keys in the server configuration file. Make sure the states directory is
+persistent and writable and after first run, the server will save its keys to the
 states directory and read it from there for future runs. It will also write the
-appropriate client parameters there.
+appropriate client parameters there, in `obfs4_bridgeline.txt`. The parameters
+can then be copied into the client's configuration file.
 
 ## Some notes
 

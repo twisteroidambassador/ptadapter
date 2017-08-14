@@ -4,6 +4,7 @@ import logging
 
 from .exceptions import ProxyConfigError, ProxyNegotiationError
 
+
 class StreamRelay:
     """Relay data between streams.
     
@@ -17,9 +18,9 @@ class StreamRelay:
     
     Provides connection tracking and termination.
     """
-    
+
     RELAY_BUFFER_SIZE = 2 ** 16
-    
+
     def __init__(self, loop, listen_host, listen_port, on_connect):
         """Start listening for connections.
         
@@ -38,24 +39,25 @@ class StreamRelay:
         self._connections = set()
         self._server = None
         self._server_task = loop.create_task(asyncio.start_server(
-                self._relay_data, listen_host, listen_port, loop=loop))
+            self._relay_data, listen_host, listen_port, loop=loop))
         self._server_task.add_done_callback(self._server_done_callback)
-        
+
     def _server_done_callback(self, fut):
         try:
             self._server = fut.result()
         except asyncio.CancelledError:
             self._logger.debug('start_server() cancelled')
         except Exception as e:
-            self._logger.error('Creating server failed with %r', e, 
+            self._logger.error('Creating server failed with %r', e,
                                exc_info=True)
         else:
             self._logger.info('StreamRelay listening on %r',
-                    [s.getsockname() for s in self._server.sockets])
+                              [s.getsockname() for s in self._server.sockets])
+
     @property
     def ready(self):
         return self._server_task
-    
+
     @asyncio.coroutine
     def _relay_data(self, dreader, dwriter):
         this_task = asyncio.Task.current_task()
@@ -69,9 +71,9 @@ class StreamRelay:
                 return
             self._logger.info('Opened upstream connection')
             upstream_side = self._loop.create_task(self._relay_data_side(
-                    dreader, uwriter))
+                dreader, uwriter))
             downstream_side = self._loop.create_task(self._relay_data_side(
-                    ureader, dwriter))
+                ureader, dwriter))
             yield from asyncio.gather(upstream_side, downstream_side)
             self._logger.debug('Both sides of relay sent EOF')
         except asyncio.CancelledError:
@@ -82,8 +84,8 @@ class StreamRelay:
         except Exception as e:
             # Do not print stack trace for some exceptions.
             if (isinstance(e, ConnectionError) or
-                isinstance(e, OSError) and e.winerror == 121 or
-                isinstance(e, ProxyNegotiationError)):
+                    (isinstance(e, OSError) and e.winerror == 121) or
+                    isinstance(e, ProxyNegotiationError)):
                 self._logger.info('Relay error: %r', e)
             else:
                 self._logger.error('Relay error: %r', e, exc_info=True)
@@ -96,7 +98,7 @@ class StreamRelay:
             dwriter.close()
             self._logger.info('Connection closed')
             self._connections.remove(this_task)
-    
+
     @asyncio.coroutine
     def _relay_data_side(self, reader, writer):
         while True:
@@ -109,7 +111,7 @@ class StreamRelay:
         self._logger.debug('Relay side received EOF')
         writer.write_eof()
         yield from writer.drain()
-    
+
     @asyncio.coroutine
     def close(self):
         """Terminate the server and all active connections."""
@@ -126,7 +128,7 @@ class StreamRelay:
         yield from asyncio.gather(*wait_list, return_exceptions=True)
 
 
-class ProxyNegotiator():
+class ProxyNegotiator:
     """Connect to a proxy server and negotiate the connection.
     
     This class is used specifically to negotiate a connecton to a
@@ -134,10 +136,10 @@ class ProxyNegotiator():
     username/password authentication is used to pass per-connection
     options to the proxy instead of actual authentication.
     """
-    
+
     PROXY_CONNECT_TIMEOUT = 3
     PROXY_NEGOTIATE_TIMEOUT = None
-    
+
     def __init__(self, loop, proxy_host, proxy_port, remote_host, remote_port,
                  options=None, *, connect_timeout=PROXY_CONNECT_TIMEOUT,
                  negotiate_timeout=PROXY_NEGOTIATE_TIMEOUT):
@@ -155,7 +157,7 @@ class ProxyNegotiator():
         self._negotiate_timeout = negotiate_timeout
         self._logger = logging.getLogger('ptadapter.ProxyNegotiator')
         self._validate_save_remote_options(remote_host, remote_port, options)
-        
+
     def _validate_save_remote_options(self, remote_host, remote_port, options):
         """Validate and save remote_host, remote_port and options.
         
@@ -165,7 +167,7 @@ class ProxyNegotiator():
         Child classes should implement this method.
         """
         raise NotImplementedError
-        
+
     @asyncio.coroutine
     def open_connection(self, **kwargs):
         """Open a connection to the proxy and do negotiations.
@@ -176,13 +178,13 @@ class ProxyNegotiator():
         ureader = uwriter = None
         try:
             ureader, uwriter = yield from asyncio.wait_for(
-                    asyncio.open_connection(
-                        self._proxy_host, self._proxy_port, loop=self._loop,
-                        **kwargs),
-                    self._connect_timeout, loop=self._loop)
+                asyncio.open_connection(
+                    self._proxy_host, self._proxy_port, loop=self._loop,
+                    **kwargs),
+                self._connect_timeout, loop=self._loop)
             yield from asyncio.wait_for(
-                    self._negotiate_proxy(ureader, uwriter),
-                    self._negotiate_timeout, loop=self._loop)
+                self._negotiate_proxy(ureader, uwriter),
+                self._negotiate_timeout, loop=self._loop)
         except asyncio.CancelledError:
             self._logger.debug('New connection cancelled')
             if uwriter is not None:
@@ -194,27 +196,29 @@ class ProxyNegotiator():
             if uwriter is not None:
                 uwriter.transport.abort()
             raise
-        return (ureader, uwriter)
-        
+        return ureader, uwriter
+
     @asyncio.coroutine
     def _negotiate_proxy(self, sreader, swriter):
         """Negotiate the proxy connection."""
         raise NotImplementedError
-    
+
+
 class SOCKS4Negotiator(ProxyNegotiator):
     def _validate_save_remote_options(self, remote_host, remote_port, options):
         try:
             self._remote_ip = ipaddress.IPv4Address(remote_host)
         except ipaddress.AddressValueError:
-            raise ProxyConfigError('Remote host {!r} not a valid IPv4 address; '
-                    'only IPv4 addresses supported for SOCKS4 pluggable '
-                    'transports'.format(self.remote_host))
+            raise ProxyConfigError(
+                'Remote host {!r} not a valid IPv4 address; '
+                'only IPv4 addresses supported for SOCKS4 pluggable '
+                'transports'.format(remote_host))
         self._remote_port = remote_port
         if options is not None:
             self._userid = options.encode('utf-8')
         else:
             self._userid = b''
-        
+
     def _negotiate_proxy(self, sreader, swriter):
         self._logger.debug('Negotiating SOCKS4 proxy connection')
         swriter.write(b''.join([b'\x04\x01',
@@ -225,11 +229,13 @@ class SOCKS4Negotiator(ProxyNegotiator):
         buf = yield from sreader.readexactly(8)
         if buf[0] != 0:
             raise ProxyNegotiationError(
-                    'Malformed SOCKS4 reply {!r}'.format(buf))
+                'Malformed SOCKS4 reply {!r}'.format(buf))
         if buf[1] != 90:
-            raise ProxyNegotiationError('SOCKS4 connect request rejected '
-                    'or failed with return code {d}'.format(buf[1]))
+            raise ProxyNegotiationError(
+                'SOCKS4 connect request rejected '
+                'or failed with return code {!d}'.format(buf[1]))
         self._logger.debug('SOCKS4 proxy negotiation complete')
+
 
 class SOCKS5Negotiator(ProxyNegotiator):
     SOCKS5_ERROR_MSG = {
@@ -251,20 +257,21 @@ class SOCKS5Negotiator(ProxyNegotiator):
             self._remote_ip = None
             self._remote_hostname = remote_host.encode('idna')
             if len(self._remote_hostname) > 255:
-                raise ProxyConfigError('Remote host name {!r} too long for '
-                        'SOCKS5; only up to 255 bytes allowed'.format(
-                            remote_host))
+                raise ProxyConfigError(
+                    'Remote host name {!r} too long for '
+                    'SOCKS5; only up to 255 bytes allowed'.format(remote_host))
         self._remote_port = remote_port
         if not options:
             self._username = None
         else:
             userpass_b = options.encode('utf-8')
-            if len(userpass_b) > 255*2:
-                raise ProxyConfigError('PT options too long for SOCKS5; only '
-                        '255*2 bytes allowed {!r}'.format(options))
+            if len(userpass_b) > 255 * 2:
+                raise ProxyConfigError(
+                    'PT options too long for SOCKS5; only '
+                    '255*2 bytes allowed {!r}'.format(options))
             self._username = userpass_b[:255]
             self._password = userpass_b[255:] or b'\x00'
-    
+
     def _negotiate_proxy(self, sreader, swriter):
         self._logger.debug('Negotiating SOCKS5 proxy connection')
         if self._username is not None:
@@ -272,10 +279,10 @@ class SOCKS5Negotiator(ProxyNegotiator):
             buf = yield from sreader.readexactly(2)
             if buf[0] != 5:
                 raise ProxyNegotiationError(
-                        'Malformed SOCKS5 reply {!r}'.format(buf))
+                    'Malformed SOCKS5 reply {!r}'.format(buf))
             if buf[1] != 2:
                 raise ProxyNegotiationError('SOCKS5 server rejected '
-                        'user/pass authentication method')
+                                            'user/pass authentication method')
             swriter.write(b''.join([b'\x01',
                                     len(self._username).to_bytes(1, 'big'),
                                     self._username,
@@ -284,47 +291,47 @@ class SOCKS5Negotiator(ProxyNegotiator):
             buf = yield from sreader.readexactly(2)
             if buf[1] != 0:
                 raise ProxyNegotiationError('SOCKS5 rejected username '
-                        '/ password')
+                                            '/ password')
         else:
             swriter.write(b'\x05\x01\x00')
             buf = yield from sreader.readexactly(2)
             if buf[0] != 5:
                 raise ProxyNegotiationError(
-                        'Malformed SOCKS5 reply {!r}'.format(buf))
+                    'Malformed SOCKS5 reply {!r}'.format(buf))
             if buf[1] != 0:
                 raise ProxyNegotiationError('SOCKS5 server rejected '
-                        'none authentication method')
+                                            'none authentication method')
         self._logger.debug('SOCKS5 authentication complete')
-        
+
         if self._remote_ip is not None:
             swriter.write(b''.join([
-                    b'\x05\x01\x00',
-                    b'\x01' if self._remote_ip.version==4 else b'\x04',
-                    self._remote_ip.packed,
-                    self._remote_port.to_bytes(2, 'big')]))
+                b'\x05\x01\x00',
+                b'\x01' if self._remote_ip.version == 4 else b'\x04',
+                self._remote_ip.packed,
+                self._remote_port.to_bytes(2, 'big')]))
         else:
             swriter.write(b''.join([
-                    b'\x05\x01\x00\x03',
-                    len(self._remote_hostname).to_bytes(1, 'big'),
-                    self._remote_hostname,
-                    self._remote_port.to_bytes(2, 'big')]))
-        
+                b'\x05\x01\x00\x03',
+                len(self._remote_hostname).to_bytes(1, 'big'),
+                self._remote_hostname,
+                self._remote_port.to_bytes(2, 'big')]))
+
         buf = yield from sreader.readexactly(4)
         if buf[0] != 5:
             raise ProxyNegotiationError(
-                    'Malformed SOCKS5 reply {!r}'.format(buf))
+                'Malformed SOCKS5 reply {!r}'.format(buf))
         if buf[1] != 0:
-            raise ProxyNegotiationError('SOCKS5 connection failed with '
-                    'code {}, reason: {}'.format(buf[1], 
-                        self.SOCKS5_ERROR_MSG.get(buf[1], 'unspecified')))
-        if buf[3] == 1: # IPv4 address
-            yield from sreader.readexactly(4+2)
-        elif buf[3] == 3: # hostname
+            raise ProxyNegotiationError(
+                'SOCKS5 connection failed with code {}, reason: {}'.format(
+                    buf[1], self.SOCKS5_ERROR_MSG.get(buf[1], 'unspecified')))
+        if buf[3] == 1:  # IPv4 address
+            yield from sreader.readexactly(4 + 2)
+        elif buf[3] == 3:  # hostname
             hostname_length = (yield from sreader.readexactly(1))[0]
             yield from sreader.readexactly(hostname_length + 2)
-        elif buf[3] == 4: # IPv6 address
-            yield from sreader.readexactly(16+2)
+        elif buf[3] == 4:  # IPv6 address
+            yield from sreader.readexactly(16 + 2)
         else:
             raise ProxyNegotiationError(
-                    'Malformed SOCKS5 reply {!r}'.format(buf))
+                'Malformed SOCKS5 reply {!r}'.format(buf))
         self._logger.debug('SOCKS5 negotiation complete')

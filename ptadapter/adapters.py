@@ -1,6 +1,5 @@
 """Adapter classes that run and control Pluggable Transports."""
 
-
 import logging
 import shlex
 import os
@@ -10,15 +9,15 @@ import functools
 from .relays import StreamRelay, SOCKS4Negotiator, SOCKS5Negotiator
 from .exceptions import PTExecError, PTExecSMethodError, PTExecCMethodError
 
-__all__ = ['PTServerAdapter', 
-           'PTClientSOCKSAdapter', 
+__all__ = ['PTServerAdapter',
+           'PTClientSOCKSAdapter',
            'PTClientStreamAdapter',
            'PTClientListeningAdapter']
 
 
-class PTBaseAdapter():
+class PTBaseAdapter:
     """Base class for pluggable transport adapters."""
-    
+
     def __init__(self, loop, ptexec, statedir):
         """Initialize class.
         
@@ -39,7 +38,7 @@ class PTBaseAdapter():
             self._ptexec = shlex.split(ptexec)
         else:
             self._ptexec = ptexec
-        
+
         # environment variables for PT
         self._env = {}
         # Python docs on subprocess.Popen:
@@ -47,28 +46,28 @@ class PTBaseAdapter():
         # the program to execute. On Windows, in order to run a
         # side-by-side assembly the specified env must include a valid
         # SystemRoot. 
-        if 'SystemRoot' in os.environ: 
+        if 'SystemRoot' in os.environ:
             self._env['SystemRoot'] = os.environ['SystemRoot']
         self._env['TOR_PT_MANAGED_TRANSPORT_VER'] = '1'
         self._env['TOR_PT_STATE_LOCATION'] = statedir
         self._env['TOR_PT_EXIT_ON_STDIN_CLOSE'] = '1'
-        
+
     @property
     def loop(self):
         return self._loop
-    
+
     def start(self):
         """Start the PT executable asynchronously."""
         self._run_task = self._loop.create_task(self._run())
-    
+
     def stop(self):
         """Terminate the PT executable asynchronously."""
         self._run_task.cancel()
-    
+
     def wait(self):
         """Run the event loop until PT terminates."""
         self._loop.run_until_complete(self._run_task)
-    
+
     def _cleanup_all_awaitables(self):
         """Stop everything and return a list of awaitables.
         
@@ -78,7 +77,7 @@ class PTBaseAdapter():
         Subclasses are expected to extend this method.
         """
         return []
-        
+
     @asyncio.coroutine
     def _run(self):
         """Run and respond to the PT executable.
@@ -92,19 +91,19 @@ class PTBaseAdapter():
         p = None
         try:
             p = yield from asyncio.create_subprocess_exec(
-                    *self._ptexec, loop=self._loop, 
-                    stdin=asyncio.subprocess.PIPE,
-                    stdout=asyncio.subprocess.PIPE, env=self._env)
+                *self._ptexec, loop=self._loop,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE, env=self._env)
             self._logger.info('PT executable started')
-            
+
             while True:
                 s = (yield from p.stdout.readline()).decode(
-                        'utf-8',errors='backslashreplace').rstrip()
+                    'utf-8', errors='backslashreplace').rstrip()
                 self._logger.debug('PT stdout: %s', s)
                 if not s:
                     raise PTExecError('PT exec closed STDOUT', '')
                 self._pt_stdout_line(s)
-        except asyncio.CancelledError as e:
+        except asyncio.CancelledError:
             self._logger.debug('PT run task cancelled')
             raise
         except PTExecError:
@@ -114,15 +113,15 @@ class PTBaseAdapter():
             if p:
                 # first try terminating via closing STDIN
                 self._logger.debug(
-                        'Attempting to terminate PT by closing STDIN')
+                    'Attempting to terminate PT by closing STDIN')
                 p.stdin.close()
                 # wait 5 seconds for the process to shut down
                 try:
                     yield from asyncio.wait_for(p.wait(), 5, loop=self._loop)
                 except asyncio.TimeoutError:
                     self._logger.debug(
-                            'PT did not terminate after closing STDIN, '
-                            'attempting to to call terminate() on PT')
+                        'PT did not terminate after closing STDIN, '
+                        'attempting to to call terminate() on PT')
                     p.terminate()
                     yield from p.wait()
                 finally:
@@ -130,7 +129,7 @@ class PTBaseAdapter():
             yield from asyncio.gather(*awaitables, loop=self._loop,
                                       return_exceptions=True)
             self._logger.debug('Adapter stopped everything')
-    
+
     def _pt_stdout_line(self, line):
         """Parse and react to one line from PT's STDOUT.
         
@@ -147,19 +146,20 @@ class PTBaseAdapter():
             self._logger.error('PT environment variables error: %s', line)
             raise PTExecError(line)
         else:
-            self._logger.warning('Unexpected PT STDOUT communication: %s',line)
- 
+            self._logger.warning('Unexpected PT STDOUT communication: %s', line)
+
+
 class PTServerAdapter(PTBaseAdapter):
     """Run a pluggable transport as the server end of a tunnel.
-    
+
     Listens on one or more TCP port(s) (different protocols for each),
     accepts obfuscated traffic, and forwards plaintext traffic to one
     TCP address:port (the ORPort).
-    
+
     Future objects are provided for each transport protocol and for the
     overall server, which can be awaited or have callbacks attached to.
     """
-    
+
     def __init__(self, loop, ptexec, statedir, orport, transports):
         """Initialize class.
         
@@ -198,10 +198,10 @@ class PTServerAdapter(PTBaseAdapter):
             ServerTransportListenAddr ballista 127.0.0.1:4891
             ServerTransportOptions trebuchet rocks=20 height=5.6m
         """
-        super().__init__(loop, ptexec, statedir)        
+        super().__init__(loop, ptexec, statedir)
         self._transports = {}
         self._server_ready = asyncio.Future()
-        
+
         transportlist = []
         optionlist = []
         bindaddrlist = []
@@ -219,15 +219,15 @@ class PTServerAdapter(PTBaseAdapter):
         if optionlist:
             self._env['TOR_PT_SERVER_TRANSPORT_OPTIONS'] = ';'.join(optionlist)
         self._env['TOR_PT_ORPORT'] = orport
-    
+
     @property
     def transports(self):
         return self._transports
-    
+
     @property
     def server_ready(self):
         return self._server_ready
-    
+
     def _cleanup_all_awaitables(self):
         s = super()._cleanup_all_awaitables()
         # These Future() objects don't need to be waited for.
@@ -235,7 +235,7 @@ class PTServerAdapter(PTBaseAdapter):
             fut.cancel()
         self._server_ready.cancel()
         return s
-    
+
     def _pt_stdout_line(self, line):
         kw, _, args = line.partition(' ')
         if kw == 'SMETHOD':
@@ -248,23 +248,24 @@ class PTServerAdapter(PTBaseAdapter):
                 pass
             self._transports[trans].set_result(res)
             self._logger.info('PT server transport %s ready, listening on %s, '
-                    'options %s', trans, res['address'], res['options'])
+                              'options %s', trans, res['address'],
+                              res['options'])
         elif kw == 'SMETHOD-ERROR':
             trans = args.partition(' ')[0]
             self._logger.warning(
-                    'PT server transport %s error: %s', trans, line)
+                'PT server transport %s error: %s', trans, line)
             self._transports[trans].set_exception(PTExecSMethodError(line))
         elif kw == 'SMETHODS' and args == 'DONE':
             self._logger.info('PT server initialization complete')
-            for trans,fut in self._transports.items():
+            for trans, fut in self._transports.items():
                 if not fut.done():
                     self._logger.warning('PT server transport %s still not '
-                            'ready, possibly ignored', trans)
+                                         'ready, possibly ignored', trans)
                     fut.cancel()
             self._server_ready.set_result(True)
         else:
             super()._pt_stdout_line(line)
-    
+
 
 class PTServerStreamAdapter(PTServerAdapter):
     """XXX: work in progress.
@@ -278,7 +279,7 @@ class PTServerStreamAdapter(PTServerAdapter):
     
     Information about the connecting client will be made available
     """
-    
+
     def __init__(self, loop, ptexec, statedir, transports, cookie_file,
                  extorport=None):
         """Initialize class.
@@ -308,7 +309,8 @@ class PTServerStreamAdapter(PTServerAdapter):
         else:
             self._ext_host = '127.0.0.1'
             self._ext_port = 0
-    
+
+
 class PTClientSOCKSAdapter(PTBaseAdapter):
     """Run a pluggable transport as a bare SOCKS proxy.
     
@@ -317,7 +319,7 @@ class PTClientSOCKSAdapter(PTBaseAdapter):
     username / password fields as specified by PT spec, and negotiate
     the connection with PT.
     """
-    
+
     def __init__(self, loop, ptexec, statedir, transports, upstream_proxy=None):
         """Initialize class.
         
@@ -336,21 +338,21 @@ class PTClientSOCKSAdapter(PTBaseAdapter):
         super().__init__(loop, ptexec, statedir)
         self._transports = {}
         self._client_ready = asyncio.Future()
-        
+
         for t in transports:
             self._transports[t] = asyncio.Future()
         self._env['TOR_PT_CLIENT_TRANSPORTS'] = ','.join(transports)
         if upstream_proxy is not None:
             self._env['TOR_PT_PROXY'] = upstream_proxy
-    
+
     @property
     def transports(self):
         return self._transports
-    
+
     @property
     def client_ready(self):
         return self._client_ready
-    
+
     def _pt_stdout_line(self, line):
         kw, _, args = line.partition(' ')
         if kw == 'PROXY' and args == 'DONE':
@@ -364,18 +366,19 @@ class PTClientSOCKSAdapter(PTBaseAdapter):
             res = {'protocol': args_l[1], 'address': args_l[2]}
             self._transports[trans].set_result(res)
             self._logger.info('PT client transport %s ready, protocol %s, '
-                    'listening on %s', trans, res['protocol'], res['address'])
+                              'listening on %s', trans, res['protocol'],
+                              res['address'])
         elif kw == 'CMETHOD-ERROR':
             trans = args.partition(' ')[0]
             self._logger.warning(
-                    'PT client transport %s error: %s', trans, line)
+                'PT client transport %s error: %s', trans, line)
             self._transports[trans].set_exception(PTExecCMethodError(line))
         elif kw == 'CMETHODS' and args == 'DONE':
             self._logger.info('PT client initialization complete')
-            for trans,fut in self._transports.items():
+            for trans, fut in self._transports.items():
                 if not fut.done():
                     self._logger.warning('PT client transport %s still not '
-                            'ready, possibly ignored', trans)
+                                         'ready, possibly ignored', trans)
                     fut.cancel()
             self._client_ready.set_result(True)
         else:
@@ -388,6 +391,7 @@ class PTClientSOCKSAdapter(PTBaseAdapter):
         self._client_ready.cancel()
         return s
 
+
 class PTClientStreamAdapter(PTClientSOCKSAdapter):
     """Use StreamReader/Writers through pluggable transports.
     
@@ -395,7 +399,7 @@ class PTClientStreamAdapter(PTClientSOCKSAdapter):
     open_connection() coroutine method to get a StreamReader / 
     StreamWriter pair through the PT.
     """
-    
+
     def __init__(self, loop, ptexec, statedir, transports, upstream_proxy=None):
         """Initialize class.
         
@@ -451,33 +455,34 @@ class PTClientStreamAdapter(PTClientSOCKSAdapter):
                     if isinstance(dest_conf['options'], str):
                         opt = dest_conf['options']
                     else:
-                        opt = ';'.join('='.join(s) 
-                                    for s in dest_conf['options'].items())
+                        opt = ';'.join('='.join(s)
+                                       for s in dest_conf['options'].items())
                 else:
                     opt = None
                 self._negotiators[trans][dest_name] = self._loop.create_task(
-                        self._create_negotiator(self._transports[trans],
-                            dest_conf['remote_host'], dest_conf['remote_port'],
-                            opt))
-    
+                    self._create_negotiator(self._transports[trans],
+                                            dest_conf['remote_host'],
+                                            dest_conf['remote_port'],
+                                            opt))
+
     @property
     def negotiators_ready(self):
         return self._negotiators
-        
+
     @asyncio.coroutine
     def _create_negotiator(self, trans_fut, remote_host, remote_port, options):
         trans = yield from trans_fut
         proxy_host, _, proxy_port = trans['address'].rpartition(':')
         proxy_port = int(proxy_port)
         if trans['protocol'] == 'socks4':
-            return SOCKS4Negotiator(self._loop, proxy_host, proxy_port, 
-                                    remot_host, remote_port, options)
+            return SOCKS4Negotiator(self._loop, proxy_host, proxy_port,
+                                    remote_host, remote_port, options)
         elif trans['protocol'] == 'socks5':
             return SOCKS5Negotiator(self._loop, proxy_host, proxy_port,
                                     remote_host, remote_port, options)
         else:
             raise PTExecError('Unexpected proxy protocol %s', trans['protocol'])
-    
+
     @asyncio.coroutine
     def open_connection(self, transport, destination, **kwargs):
         """Open a connection through the PT.
@@ -493,7 +498,7 @@ class PTClientStreamAdapter(PTClientSOCKSAdapter):
         """
         negotiator = yield from self._negotiators[transport][destination]
         return (yield from negotiator.open_connection(**kwargs))
-    
+
     def _cleanup_all_awaitables(self):
         s = super()._cleanup_all_awaitables()
         for n in self._negotiators.values():
@@ -501,15 +506,16 @@ class PTClientStreamAdapter(PTClientSOCKSAdapter):
                 task.cancel()
         return s
 
+
 class PTClientListeningAdapter(PTClientStreamAdapter):
     """Run a pluggable transport as the client end of a tunnel.
     
     Listen for TCP connections on specified host:port, and forward 
     obfuscated traffic to destination host:port.
     """
-    
+
     def __init__(self, loop, ptexec, statedir, transports, upstream_proxy=None,
-            access_control_cb=None):
+                 access_control_cb=None):
         """Initialize class.
         
         loop, ptexec, statedir, upstream_proxy: 
@@ -572,15 +578,16 @@ class PTClientListeningAdapter(PTClientStreamAdapter):
             self._relays[trans] = {}
             for dest_name, dest_conf in dests.items():
                 self._relays[trans][dest_name] = self._loop.create_task(
-                        self._create_relay(
-                            trans, dest_name, dest_conf['listen_host'],
-                            dest_conf['listen_port']))
+                    self._create_relay(
+                        trans, dest_name, dest_conf['listen_host'],
+                        dest_conf['listen_port']))
         if access_control_cb is None:
             self._access_control_cb = self._access_control_allow_all
         else:
             self._access_control_cb = access_control_cb
-    
-    def _access_control_allow_all(self, transport, destination, peername):
+
+    @staticmethod
+    def _access_control_allow_all(transport, destination, peername):
         """Example access control callback. Allows all connections.
         
         transport, destination: the names used when configuring this
@@ -596,30 +603,30 @@ class PTClientListeningAdapter(PTClientStreamAdapter):
         connection.
         """
         return True
-    
+
     @asyncio.coroutine
     def _on_connect(self, transport, destination, negotiator, dreader, dwriter):
         peername = dwriter.get_extra_info('peername')
         ac = self._access_control_cb(transport, destination, peername)
         if asyncio.iscoroutine(ac):
             ac = yield from ac
-        
+
         if ac:
             self._access_log.warning('New connection to %s,%s accepted from %r',
-                    transport, destination, peername)
+                                     transport, destination, peername)
             return (yield from negotiator.open_connection())
         else:
             self._access_log.warning('New connection to %s,%s rejected from %r',
-                    transport, destination, peername)
+                                     transport, destination, peername)
             return (None, None)
-    
+
     @asyncio.coroutine
     def _create_relay(self, transport, destination, listen_host, listen_port):
         negotiator = yield from self._negotiators[transport][destination]
         on_connect_cb = functools.partial(
-                self._on_connect, transport, destination, negotiator)
+            self._on_connect, transport, destination, negotiator)
         return StreamRelay(self._loop, listen_host, listen_port, on_connect_cb)
-    
+
     def _cleanup_all_awaitables(self):
         s = super()._cleanup_all_awaitables()
         for trans in self._relays.values():
@@ -633,5 +640,6 @@ class PTClientListeningAdapter(PTClientStreamAdapter):
                     except Exception:
                         self._logger.debug('Leftover exception in relay',
                                            exc_info=True)
-                    s.append(t)
+                    else:
+                        s.append(t)
         return s

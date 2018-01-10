@@ -320,7 +320,7 @@ class SOCKS5Negotiator(ProxyNegotiator):
         if buf[3] == 1: # IPv4 address
             yield from sreader.readexactly(4+2)
         elif buf[3] == 3: # hostname
-            hostname_length = yield from sreader.readexactly(1)
+            hostname_length = (yield from sreader.readexactly(1))[0]
             yield from sreader.readexactly(hostname_length + 2)
         elif buf[3] == 4: # IPv6 address
             yield from sreader.readexactly(16+2)

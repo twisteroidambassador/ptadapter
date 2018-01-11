@@ -67,7 +67,7 @@ class StreamRelay:
         try:
             ureader, uwriter = yield from self._on_connect(dreader, dwriter)
             if ureader is None or uwriter is None:
-                dwriter.abort()
+                dwriter.transport.abort()
                 return
             self._logger.info('Opened upstream connection')
             upstream_side = self._loop.create_task(self._relay_data_side(
@@ -80,7 +80,7 @@ class StreamRelay:
             self._logger.debug('Connection cancelled')
             if uwriter is not None:
                 uwriter.transport.abort()
-            dwriter.abort()
+            dwriter.transport.abort()
         except Exception as e:
             # Do not print stack trace for some exceptions.
             if (isinstance(e, ConnectionError) or

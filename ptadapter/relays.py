@@ -84,7 +84,8 @@ class StreamRelay:
         except Exception as e:
             # Do not print stack trace for some exceptions.
             if (isinstance(e, ConnectionError) or
-                    (isinstance(e, OSError) and e.winerror == 121) or
+                    (isinstance(e, OSError) and hasattr(e, 'winerror')
+                     and e.winerror == 121) or
                     isinstance(e, ProxyNegotiationError)):
                 self._logger.info('Relay error: %r', e)
             else:

@@ -1,4 +1,22 @@
-This repository is home to Pluggable Transport Adapter, a Python 3 package that 
+**Complete rewrite!**
+
+The old code was written for compatibility with Python 3.4, and seemed
+to have stopped working when Python 3.7 came out. So I have completely
+rewritten the entire package using Python 3.7 idioms.
+
+All the code is here, with inline documentation. PyPI package,
+online docs and a new README coming soon. In the mean time, download
+the source and try it out:
+
+```
+python -m ptadapter --help
+```
+
+**The old, outdated README follows.**
+
+
+
+This repository is home to Pluggable Transport Adapter, a Python 3 package that
 interfaces with Tor's pluggable transports, plus a script to run pluggable 
 transports as TCP tunnel.
 

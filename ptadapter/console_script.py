@@ -205,7 +205,7 @@ async def amain():
         '-E', '--ext-server', action='store_true',
         help='''Run as server end of tunnel using ExtOrPort. This allows
         logging client addresses and transport names, but adds connection
-        oveerhead.'''
+        overhead.'''
     )
     role_group.add_argument(
         '-C', '--client', action='store_true',

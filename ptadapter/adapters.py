@@ -241,7 +241,7 @@ class _BasePTAdapter:
             self._logger.debug('Created tempdir for state: %s', self._state)
 
     async def start(self) -> None:
-        """Start the PT executable and wait until it's ready.
+        """(async) Start the PT executable and wait until it's ready.
 
         "Ready" means that all transports have finished initializing.
         """
@@ -265,7 +265,7 @@ class _BasePTAdapter:
             raise
 
     async def stop(self) -> None:
-        """Stop the PT executable.
+        """(async) Stop the PT executable.
 
         First try to signal a graceful exit by closing PT's STDIN (if
         enabled) and wait, then call
@@ -307,7 +307,7 @@ class _BasePTAdapter:
             await self._stack.aclose()
 
     async def wait(self) -> None:
-        """Block until the PT process exit."""
+        """(async) Block until the PT process exit."""
         self._check_started()
         await self._process.wait()
 
@@ -417,7 +417,7 @@ class ClientAdapter(_BasePTAdapter):
             args: Optional[Dict[str, str]],
             **kwargs,
     ) -> Tuple[asyncio.StreamReader, asyncio.StreamWriter]:
-        """Open a connection through a client transport.
+        """(async) Open a connection through a client transport.
 
         This method uses :meth:`get_transport` and
         :func:`asyncio.open_connection`, and their exceptions will not be
@@ -697,7 +697,7 @@ class SafeCookieServerAuthenticator:
             reader: asyncio.StreamReader,
             writer: asyncio.StreamWriter,
     ) -> bool:
-        """Authenticate a connecting client.
+        """(async) Authenticate a connecting client.
 
         Returns:
             True if authentication is successful and False otherwise. The

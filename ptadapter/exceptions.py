@@ -1,6 +1,6 @@
 """Exceptions raised by this package.
 
-The two Enums used in these exceptions are also imported in this module for
+Two Enums used in these exceptions are also imported in this module for
 convenience.
 """
 

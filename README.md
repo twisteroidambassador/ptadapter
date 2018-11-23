@@ -1,117 +1,70 @@
-**Complete rewrite!**
-
-The old code was written for compatibility with Python 3.4, and seemed
-to have stopped working when Python 3.7 came out. So I have completely
-rewritten the entire package using Python 3.7 idioms.
-
-All the code is here, with inline documentation. PyPI package,
-online docs and a new README coming soon. In the mean time, download
-the source and try it out:
-
-```
-python -m ptadapter --help
-```
-
-**The old, outdated README follows.**
-
-
-
-This repository is home to Pluggable Transport Adapter, a Python 3 package that
-interfaces with Tor's pluggable transports, plus a script to run pluggable 
-transports as TCP tunnel.
-
-**This project REQUIRES Python 3.4.2 or higher.** Other than the standard 
-library, it has no dependencies.
-
-## Motivation
-The motivation for this project comes from the desire of running 
-[`obfs4proxy`](https://github.com/Yawning/obfs4/tree/master/obfs4proxy) 
-independently of Tor. `obfs4proxy` [does not have a standalone mode]
-(https://lists.torproject.org/pipermail/tor-relays/2014-September/005372.html), 
-so I implemented enough of [Tor's pluggable transport specification]
-(https://gitweb.torproject.org/torspec.git/tree/pt-spec.txt "pt-spec.txt") to 
-support standalone operation as server or client, in a way that's hopefully 
-reusable for other projects.
-
 # ptadapter
 
-The package used to be called `pluggabletransportadapter`, but that name is 
-rather long and cumbersome, so it has been renamed to the shorter version.
+`ptadapter` is a Python 3
+package that interfaces with Pluggable Transports.
 
-This package implements Tor's pluggable transport protocol, in order to run 
-and control pluggable transports (PT).
+Pluggable Transports (PT) are originally created for [Tor] as a modular,
+interchangeable (pluggable) method of tunneling and obfuscating
+network traffic (transport). This design makes PTs useful not only for
+Tor, but many other use cases where traffic obfuscation is desired.
+Learn more about Pluggable Transports at the dedicated website,
+https://www.pluggabletransports.info/
 
-This package requires Python 3.4.2 or higher.
+[Tor]: https://torproject.org/
 
-These classes are implemented: `PTServerAdapter`, `PTClientSOCKSAdapter`, 
-`PTClientStreamAdapter`, `PTClientListeningAdapter`.
+This package implements Version 1 of the Pluggable Transport
+specifications (relevant specs can be found in the `specifications`
+directory). Version 2 of the specs is in development: refer to the
+website linked above for progress.
 
-`PTServerAdapter` runs PT executable as a server, listening on TCP ports for 
-obfuscated traffic and forwards plaintext traffic to a given address:port. 
-Obfuscated traffic hit the PT executable directly, and unobfuscated traffic
-is emitted by the PT executable; the script has no idea about client 
-connections.
+(This package also implements Tor's Extended ORPort protocol, which
+can be optionally used to receive server connections from PTs.)
 
-`PTClientSOCKSAdapter` runs PT executable as a client, where the PT listens on 
-an address:port of its choice, accepts either SOCKS4 or SOCKS5 connection 
-attempts, obfuscates the traffic and forwards it to a server.
+**This package REQUIRES Python 3.7 or higher.** It has no 3rd-party
+dependencies.
 
-`PTClientStreamAdapter` does what `PTClientSOCKSAdapter` does, and provides 
-convenient methods for creating StreamReader/Writer pairs that talks through the
-PT.
+## What's Included
 
-`PTClientListeningAdapter` does what `PTClientStreamAdapter` does. In addition
-it listens for plaintext traffic on a TCP address:port and forwards them 
-through the PT.
+This package implements several Python classes that execute and
+communicate with a PT subprocess, allowing connections to be made
+through the PT as a client, or received as a server.
+The code is built on top of `asyncio`, and uses the familiar
+`StreamReader` and `StreamWriter` for connections.
 
-# The script
+Also included is a ready-made tool that can run PTs as a standalone
+tunnel. No coding is necessary to use this.
 
-The script `standalone.py` allows running pluggable transports such as 
-`obfs4proxy` as standalone servers and clients. Run one copy as client and
-another as server to create obfuscated tunnels.
+## What's Required
 
-## Requirements
+* Python 3.7 or above.
+* The Pluggable Transport to be used, as an executable program. This
+  may be installed from the repository, built from source, extracted
+  from the Tor Browser Bundle, etc.
 
-To use these scripts, you'll need:
+## How to get this package
 
-* The scripts themselves. Check the
-[Releases section](https://github.com/twisteroidambassador/pluggabletransportadapter/releases)
-to download a zip package, or just checkout with git.
+This package will be uploaded to PyPI soon. In the meantime, either
+clone this repository or download a source package, and put the
+`ptadapter` directory in the working directory or somewhere in your
+PYTHONPATH.
 
-* A compiled binary of the pluggable transport you wish to use. On many Linux
-distributions you can install them from the package repository. For Windows, it
-might be easiest to extract the binary from Tor Browser Bundle.
+## How to use PTs in you own Python program
 
-* Python 3.4.2 or higher for your operating system.
+Start with the Documentation. <-- That's supposed to be a link,
+but ReadTheDocs does not support building documentation with Python 3.7
+yet, so in the meantime, just check the source code, where all
+the important stuff have docstrings.
 
-## Configuration
+## How to create a standalone PT tunnel
 
-The provided config files are commented in detail, and intended for testing.
-Follow them to write your own config files, but do not use them as-is.
+If the package is installed via `pip`, an entry script called
+`ptadapter` is created, so run the command below to see usage:
 
-In particular, these provided files contain
-matching keys so an `obfs4` clients can authenticate and talk to the server. 
-**DO NOT use those keys for your own servers!** For `obfs4`, you *do not* need to
-specify keys in the server configuration file. Make sure the states directory is
-persistent and writable and after first run, the server will save its keys to the
-states directory and read it from there for future runs. It will also write the
-appropriate client parameters there, in `obfs4_bridgeline.txt`. The parameters
-can then be copied into the client's configuration file.
+    ptadapter --help
 
-## Some notes
+Otherwise, run:
 
-The reason I'm targetting Python 3.4.2 is that Debian Jessie has that version
-in the official repository, and it has `loop.create_task()` so I don't have to
-use `asyncio.async()` where `async` is a reserved keyword in Python 3.5 and 
-later.
+    python -m ptadapter --help
 
-Since communication to the PT executable is now via `asyncio` subprocess pipes,
-on Windows the event loop must be a `ProactorEventLoop`, not the default 
-`SelectorEventLoop`.
-
-# Ideas for Future Work
-
-Extended ORPort support is still work in progress. Turns out per-connection
-bandwidth control and throttling was never implemented in Tor and PTs, so the
-only benefit of ExtORPort is that the server script can know where clients are 
-connecting from, and potentially refuse connections.
+A configuration file should be provided to the script. See the
+example configuration file in the source directory for guidance.

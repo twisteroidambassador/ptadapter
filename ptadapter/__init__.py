@@ -14,3 +14,7 @@ and any torspec documents linked from the above documentations.
 from .adapters import *
 
 __all__ = adapters.__all__
+
+__version__ = '3.0.0b1'
+# Note: since ptadapter does not have any 3rd-party dependencies,
+# it should be safe for setup.py to import this.

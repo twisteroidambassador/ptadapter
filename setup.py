@@ -1,6 +1,8 @@
 from setuptools import setup, find_packages
 
 from ptadapter import __version__
+# Note: since ptadapter does not have any 3rd-party dependencies,
+# it should be safe for setup.py to import it.
 
 with open('README.md', 'rt') as readme_file:
     long_description = readme_file.read()

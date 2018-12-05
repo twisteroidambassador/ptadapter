@@ -199,18 +199,22 @@ async def amain():
     role_group = parser.add_mutually_exclusive_group(required=True)
     role_group.add_argument(
         '-S', '--server', action='store_true',
-        help='''Run as server end of tunnel.'''
+        help='''Run as server end of tunnel. Since the PT directly forwards
+        unobfuscated traffic upstream, no client information will be logged
+        even if verbosity is turned up.'''
     )
     role_group.add_argument(
         '-E', '--ext-server', action='store_true',
-        help='''Run as server end of tunnel using ExtOrPort. This allows
-        logging client addresses and transport names, but adds connection
+        help='''Run as server end of tunnel using ExtOrPort. Compared with -S, 
+        running ptadapter with this option allows client addresses and 
+        transport names to be logged, but also increases connection
         overhead.'''
     )
     role_group.add_argument(
         '-C', '--client', action='store_true',
         help='''Run as client end of tunnel.'''
     )
+
     parser.add_argument(
         'configfile', type=argparse.FileType('rt'),
         help='''Configuration file.'''

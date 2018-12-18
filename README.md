@@ -43,7 +43,11 @@ tunnel. No coding is necessary to use this.
 
 ## How to get this package
 
-This package will be uploaded to PyPI soon. In the meantime, either
+This package is now uploaded to PyPI, so install it the usual way:
+
+    pip install ptadapter
+
+If you don't want to install, you could also
 clone this repository or download a source package, and put the
 `ptadapter` directory in the working directory or somewhere in your
 PYTHONPATH.

@@ -48,10 +48,13 @@ extensions = [
     'sphinxcontrib_trio',
 ]
 
+autodoc_member_order = 'bysource'
+# Setting 'member-order' below in default options does not seem to work
+
 autodoc_default_options = {
     # 'members': None,
-    'special-members': '__init__',
     'member-order': 'bysource',
+    'special-members': '__init__',
 }
 
 intersphinx_mapping = {

@@ -1,6 +1,26 @@
 Console Script Guide
 ####################
 
+The console script can be used to build a standalone PT tunnel. Borrowing
+from the illustration in PT specifications:
+
+::
+
+     +------------+                    +-------------------+
+     | Client App +-- Local Loopback --+ ptadapter Client  +--+
+     +------------+                    +-------------------+  |
+                                                              |
+         Public Internet (Obfuscated/Transformed traffic) ==> |
+                                                              |
+     +------------+                    +-------------------+  |
+     | Server App +-- Local Loopback --+ ptadapter Server  +--+
+     +------------+                    +-------------------+
+
+One copy of ptadapter runs on the client host, and one copy runs on the server
+host. The client app connects to the client-side ptadapter, which obfuscates
+traffic and sends it to the server-side ptadapter, which then unobfuscates
+it and forward it to the server app.
+
 
 Invocation
 ==========

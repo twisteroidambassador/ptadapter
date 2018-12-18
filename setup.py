@@ -30,7 +30,7 @@ setup(
     keywords='pluggable-transport obfuscation tcp',
     project_urls={
         'Tracker': 'https://github.com/twisteroidambassador/pluggabletransportadapter/issues',
-        # 'Documentation': '',
+        'Documentation': 'https://twisteroidambassador.github.io/ptadapter-docs/',
     },
     packages=find_packages(),
     python_requires='>=3.7',

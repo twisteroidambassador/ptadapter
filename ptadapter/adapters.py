@@ -855,8 +855,10 @@ class ExtServerAdapter(_BaseServerAdapter):
             reader: asyncio.StreamReader,
             writer: asyncio.StreamWriter,
     ) -> None:
-        async with contexts.log_unhandled_exc(self._logger), \
-                   contexts.aclosing_multiple_writers(writer):
+        # This callback function should not close writer when exiting. After
+        # all, the API consumer may decide to stash reader and writer somewhere
+        # for use later and return from their supplied callback function early.
+        async with contexts.log_unhandled_exc(self._logger):
             try:
                 auth_result = await self._authenticator.authenticate(
                     reader, writer)

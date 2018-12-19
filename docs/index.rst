@@ -6,7 +6,7 @@
 Welcome to ptadapter's documentation!
 =====================================
 
-Project home page: https://github.com/twisteroidambassador/pluggabletransportadapter
+Project home page: https://github.com/twisteroidambassador/ptadapter
 
 For how to use ptadapter to build a standalone Pluggable Transcript tunnel,
 check out the :doc:`console_script`.

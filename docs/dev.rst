@@ -13,6 +13,13 @@ connection from a PT client.
 Common aspects
 ==============
 
+**Note**: Since ptadapter runs the PT as a subprocess, on Windows platforms
+a :class:`~asyncio.ProactorEventLoop` should be used, instead of the default
+:class:`~asyncio.SelectorEventLoop`.
+To set :class:`~asyncio.ProactorEventLoop` as default::
+
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 There are several common arguments when initializing any of the ``*Adapter``
 classes:
 

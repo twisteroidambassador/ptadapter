@@ -542,7 +542,7 @@ class _BaseServerAdapter(_BasePTAdapter):
                     host = f'[{host}]'
                 transport_addrs.append(f'{tname}-{host}:{topts.port}')
             if topts.options:
-                for key, value in topts.options:
+                for key, value in topts.options.items():
                     key = str_utils.escape_server_options(key)
                     value = str_utils.escape_server_options(value)
                     transport_options.append(f'{tname}:{key}={value}')

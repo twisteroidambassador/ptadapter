@@ -22,7 +22,7 @@ from ptadapter import __version__
 # -- Project information -----------------------------------------------------
 
 project = 'ptadapter'
-copyright = '2018, twisteroid ambassador'
+copyright = '2018 - 2020, twisteroid ambassador'
 author = 'twisteroid ambassador'
 
 # The short X.Y version

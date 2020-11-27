@@ -54,11 +54,10 @@ PYTHONPATH.
 
 ## How to use PTs in you own Python program
 
-Start with the [Documentation]. Currently the docs are hosted on
-Github Pages and updated manually. When Read The Docs supports building
-docs with Python 3.7, the docs will be moved there.
+Start with the [Developer Guide] page in the [Documentation]. 
 
-[Documentation]: https://twisteroidambassador.github.io/ptadapter-docs/
+[Developer Guide]: https://ptadapter.readthedocs.io/en/latest/dev.html 
+[Documentation]: https://ptadapter.readthedocs.io/en/latest/index.html
 
 ## How to create a standalone PT tunnel
 
@@ -72,6 +71,8 @@ Otherwise, run:
     python -m ptadapter --help
 
 A configuration file should be provided to the script.
-The [Documentation] contains a detailed guide page, which includes
+The [console script guide page] in the [Documentation] includes
 an example config file with detailed comments; the example config file
 can also be found in this repository.
+
+[console script guide page]: https://ptadapter.readthedocs.io/en/latest/console_script.html

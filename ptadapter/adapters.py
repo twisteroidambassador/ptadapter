@@ -405,7 +405,7 @@ class ClientAdapter(_BasePTAdapter):
             self._logger.debug('PT initialization complete')
             for fut in self._transports.values():
                 if not fut.done():
-                    fut.set_exception('PT ignored transport')
+                    fut.set_exception(RuntimeError('PT ignored transport'))
         else:
             super()._process_stdout_line(kw, optargs)
 
@@ -583,7 +583,7 @@ class _BaseServerAdapter(_BasePTAdapter):
             self._logger.debug('PT initialization complete')
             for fut in self._transports.values():
                 if not fut.done():
-                    fut.set_exception('PT ignored transport')
+                    fut.set_exception(RuntimeError('PT ignored transport'))
         else:
             super()._process_stdout_line(kw, optargs)
 

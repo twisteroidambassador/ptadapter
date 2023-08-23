@@ -26,7 +26,8 @@ async def aclosing_multiple_writers(*writers: asyncio.StreamWriter):
         for w in writers:
             w.close()
     finally:
-        close_tasks, _ = await asyncio.wait([w.wait_closed() for w in writers])
+        close_tasks, _ = await asyncio.wait(
+            [asyncio.create_task(w.wait_closed()) for w in writers])
         for t in close_tasks:
             if t.exception():
                 logger.debug(
